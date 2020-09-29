@@ -330,7 +330,7 @@ main(int argc, char **argv)
 		hints.ai_family = AF_INET6;
 
 	/* Parse command line options */
-	while ((ch = getopt(argc, argv, "h?" "4bRT:" "6F:N:" "aABc:dDfi:I:l:Lm:M:nOp:qQ:rs:S:t:UvVw:W:")) != EOF) {
+	while ((ch = getopt(argc, argv, "h?" "4bRT:" "6F:N:" "aABc:dDfi:I:l:Lm:M:nOp:qQ:rs:S:t:UvVw:W:e")) != EOF) {
 		switch(ch) {
 		/* IPv4 specific options */
 		case '4':
@@ -511,8 +511,8 @@ main(int argc, char **argv)
 				error(2, 0, _("bad linger time: %s"), optarg);
 			/* lingertime will be converted to usec later */
 			rts.lingertime = (int)(optval * 1000);
-		}
 			break;
+		}
 		case 'e':
         {
             rts.probe = 1;
