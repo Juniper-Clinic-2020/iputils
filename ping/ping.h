@@ -66,6 +66,8 @@
 #define	MAXWAIT		10		/* max seconds to wait for response */
 #define MININTERVAL	10		/* Minimal interpacket gap */
 #define MINUSERINTERVAL	200		/* Minimal allowed interval for non-root */
+#define ICMP4_EXTENDED_ECHO  42
+#define ICMP6_EXTENDED_ECHO  160
 
 #define SCHINT(a)	(((a) <= MININTERVAL) ? MININTERVAL : (a))
 
@@ -109,8 +111,10 @@ struct ping_rts;
 
 int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai, socket_st *sock);
 int ping4_send_probe(struct ping_rts *rts, socket_st *, void *packet, unsigned packet_size);
+int probe4_send_probe(struct ping_rts *rts, socket_st *, void *packet, unsigned packet_size);
 int ping4_receive_error_msg(struct ping_rts *, socket_st *);
 int ping4_parse_reply(struct ping_rts *, socket_st *, struct msghdr *msg, int cc, void *addr, struct timeval *);
+int probe4_parse_reply(struct ping_rts *, socket_st *, struct msghdr *msg, int cc, void *addr, struct timeval *);
 void ping4_install_filter(struct ping_rts *rts, socket_st *);
 
 typedef struct ping_func_set_st {
@@ -206,6 +210,7 @@ struct ping_rts {
 
 	/* Used only in ping_common.c */
 	int screen_width;
+	int probe;
 #ifdef HAVE_LIBCAP
 	cap_value_t cap_raw;
 	cap_value_t cap_admin;

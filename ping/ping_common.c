@@ -348,7 +348,8 @@ int pinger(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock)
 	}
 
 resend:
-	i = fset->send_probe(rts, sock, rts->outpack, sizeof(rts->outpack));
+	if(rts->probe == 0) i = fset->send_probe(rts, sock, rts->outpack, sizeof(rts->outpack));
+	else i = probe4_send_probe(rts, sock, rts->outpack, sizeof(rts->outpack));
 
 	if (i == 0) {
 		oom_count = 0;
@@ -706,7 +707,8 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 					recv_timep = &recv_time;
 				}
 
-				not_ours = fset->parse_reply(rts, sock, &msg, cc, addrbuf, recv_timep);
+				if(rts->probe == 0) not_ours = fset->parse_reply(rts, sock, &msg, cc, addrbuf, recv_timep);
+                else not_ours = probe4_parse_reply(rts, sock, &msg, cc, addrbuf, recv_timep);
 			}
 
 			/* See? ... someone runs another ping on this host. */

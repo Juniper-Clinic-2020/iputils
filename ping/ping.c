@@ -68,6 +68,22 @@ struct icmp_filter {
 };
 #endif
 
+
+struct exthdr {
+    uint16_t    v_rsvd;
+    uint16_t    checksum;
+};
+
+struct iio {
+    uint16_t    len;
+    uint8_t     class;
+    uint8_t     ctype;
+    uint16_t    afi;
+    uint8_t     addrlen;
+    uint8_t     rsvd;
+    uint32_t    addr;
+};
+
 ping_func_set_st ping4_func_set = {
 	.send_probe = ping4_send_probe,
 	.receive_error_msg = ping4_receive_error_msg,
@@ -79,6 +95,9 @@ ping_func_set_st ping4_func_set = {
 #define	MAXICMPLEN	76
 #define	NROUTES		9		/* number of record route slots */
 #define TOS_MAX		255		/* 8-bit TOS field */
+
+#define    READ_VERSION(x)      (ntohs(x) >> 12)
+#define    WRITE_VERSION(x, y)  (htons(x = (x & 0x0FFF) | (y << 12)))
 
 static void create_socket(struct ping_rts *rts, socket_st *sock, int family,
 			  int socktype, int protocol, int requisite)
@@ -494,6 +513,11 @@ main(int argc, char **argv)
 			rts.lingertime = (int)(optval * 1000);
 		}
 			break;
+		case 'e':
+        {
+            rts.probe = 1;
+            break;
+        }
 		default:
 			usage();
 			break;
@@ -1472,6 +1496,100 @@ int ping4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 	return (cc == i ? 0 : i);
 }
 
+/* pinger for probe
+ * Constructs an ICMP Probe message as defined in RFC 8335
+ * Based on the code for ping4_send_probe
+ */
+int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
+             unsigned packet_size __attribute__((__unused__)))
+{
+    struct icmphdr  *icp;
+    struct exthdr   ext;
+    struct iio      iio;
+    int cc;
+    int i;
+    struct exthdr   *extbase;
+    struct iio      *iiobase;
+    // uint32_t        *addr;
+
+
+    icp = (struct icmphdr *)packet;
+    extbase = (struct exthdr *)(icp + 1);
+    iiobase = (struct iio *)((char *)packet + sizeof(icp) + sizeof(ext));
+    // addr = (uint32_t*)iiobase + 1;
+    // icp->type = ICMP_ECHO;
+    icp->type = ICMP4_EXTENDED_ECHO;
+    icp->code = 0;
+    icp->checksum = 0;
+    icp->un.echo.sequence = htons(rts->ntransmitted + 1);
+    icp->un.echo.id = rts->ident;            /* ID */
+    WRITE_VERSION(ext.v_rsvd , 2);
+    ext.v_rsvd = htons(ext.v_rsvd);
+    ext.checksum = 0;
+    iio.len = htons(sizeof(iio));
+    iio.class = 3;
+    iio.ctype = 3;
+    iio.afi = htons(1);
+    iio.rsvd = 0;
+
+    // Modify following line - pad with 0 if not terminating on 32 bit boundary
+    memcpy((unsigned short *)&iio.addr, &rts->whereto.sin_addr, sizeof(rts->whereto.sin_addr));
+    iio.addrlen = sizeof(rts->whereto.sin_addr);
+    // *addr = htonl(*addr);
+    // printf("addr: %d, actual %d\n", *addr, rts->whereto.sin_addr);
+    // printf("iio len %d class %d ctype %d afi %d addrlen %d rsvd %d\n", iio.len, iio.class, iio.ctype,
+                                                                        // iio.afi, iio.addrlen, iio.rsvd);
+    rcvd_clear(rts, rts->ntransmitted + 1);
+
+    // printf("Sending Message:\n");
+    // Print packet info in human readable format
+    // printf("Begin ICMP Header\n");
+    // printf("Type: %d, Code: %d, Checksum: %d ID: %d, Sequence: %d\n", 
+    //             icp->type, icp->code, icp->checksum, icp->un.echo.id, icp->un.echo.sequence);
+    // printf("rts timing %d, rts opt_latency %d\n", rts->timing, rts->opt_latency);
+    if (rts->timing) {
+        if (rts->opt_latency) {
+            struct timeval tmp_tv;
+            gettimeofday(&tmp_tv, NULL);
+            memcpy(iiobase + (iio.addrlen / 4), &tmp_tv, sizeof(tmp_tv));
+        } else {
+            memset(iiobase + (iio.addrlen / 4), 0, sizeof(struct timeval));
+        }
+    }
+
+    cc = rts->datalen + 8;            /* skips ICMP portion */
+
+    /* compute Extended Header checksum here */
+    // TODO: Calculating checksum weird for some reason
+    // ext.checksum = in_cksum((unsigned short *)&ext, sizeof(ext), 0);
+    // printf("checksum: %x\n", ext.checksum);
+    // ext.checksum = in_cksum((unsigned short *)&iio, sizeof(iio), ~ext.checksum);
+    // printf("checksum: %x\n", ext.checksum);
+
+    // ext.checksum = in_cksum((unsigned short *)&iio + 1, cc - sizeof(icp) - sizeof(ext) - sizeof(iio), ~ext.checksum);
+    // printf("checksum: %x\n", ext.checksum);
+
+
+    /* compute ICMP checksum here */
+    icp->checksum = in_cksum((unsigned short *)icp, cc, 0);
+
+    if (rts->timing && !rts->opt_latency) {
+        struct timeval tmp_tv;
+        gettimeofday(&tmp_tv, NULL);
+        memcpy(iiobase + (iio.addrlen / 4), &tmp_tv, sizeof(tmp_tv));
+        icp->checksum = in_cksum((unsigned short *)&tmp_tv, sizeof(tmp_tv), ~icp->checksum);
+    }
+    memcpy(extbase, &ext, sizeof(ext));
+    memcpy(iiobase, &iio, sizeof(iio));
+    // memcpy(iiobase + 1, &addr, iio.addrlen);
+    icp->checksum = in_cksum((unsigned short *)&ext, sizeof(ext), ~icp->checksum);
+    icp->checksum = in_cksum((unsigned short *)&iio, sizeof(iio), ~icp->checksum);
+    // icp->checksum = in_cksum((unsigned short *)addr, iio.addrlen, ~icp->checksum);
+
+    i = sendto(sock->fd, icp, cc, 0, (struct sockaddr *)&rts->whereto, sizeof(rts->whereto));
+    return (cc == i ? 0 : i);
+}
+
 /*
  * parse_reply --
  *	Print out the packet, if it came from us.  This logic is necessary
@@ -1634,6 +1752,157 @@ int ping4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
 		fflush(stdout);
 	}
 	return 0;
+}
+
+int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
+              struct msghdr *msg, int cc, void *addr,
+              struct timeval *tv)
+{
+	struct sockaddr_in *from = addr;
+    uint8_t *buf = msg->msg_iov->iov_base;
+    struct icmphdr *icp;
+    struct iphdr *ip;
+    int hlen;
+    int csfailed;
+    struct cmsghdr *cmsgh;
+    int reply_ttl;
+    uint8_t *opts, *tmp_ttl;
+    int olen;
+
+    printf("In probe4_parse_reply!\n");
+
+    /* Check the IP header */
+    ip = (struct iphdr *)buf;
+    if (sock->socktype == SOCK_RAW) {
+        hlen = ip->ihl * 4;
+        if (cc < hlen + 8 || ip->ihl < 5) {
+            if (rts->opt_verbose)
+                error(0, 0, _("packet too short (%d bytes) from %s"), cc,
+                    pr_addr(rts,from, sizeof *from));
+            return 1;
+        }
+        reply_ttl = ip->ttl;
+        opts = buf + sizeof(struct iphdr);
+        olen = hlen - sizeof(struct iphdr);
+    } else {
+        hlen = 0;
+        reply_ttl = 0;
+        opts = buf;
+        olen = 0;
+        for (cmsgh = CMSG_FIRSTHDR(msg); cmsgh; cmsgh = CMSG_NXTHDR(msg, cmsgh)) {
+            if (cmsgh->cmsg_level != SOL_IP)
+                continue;
+            if (cmsgh->cmsg_type == IP_TTL) {
+                if (cmsgh->cmsg_len < sizeof(int))
+                    continue;
+                tmp_ttl = (uint8_t *)CMSG_DATA(cmsgh);
+                reply_ttl = (int)*tmp_ttl;
+            } else if (cmsgh->cmsg_type == IP_RETOPTS) {
+                opts = (uint8_t *)CMSG_DATA(cmsgh);
+                olen = cmsgh->cmsg_len;
+            }
+        }
+    }
+
+    /* Now the ICMP part */
+    cc -= hlen;
+    icp = (struct icmphdr *)(buf + hlen);
+    csfailed = in_cksum((unsigned short *)icp, cc, 0);
+
+    if (icp->type == ICMP_ECHOREPLY) {
+        if (!rts->broadcast_pings && !rts->multicast &&
+            from->sin_addr.s_addr != rts->whereto.sin_addr.s_addr)
+            return 1;
+        if (!is_ours(rts, sock, icp->un.echo.id))
+            return 1;            /* 'Twas not our ECHO */
+        if (!contains_pattern_in_payload(rts, (uint8_t *)(icp + 1)))
+            return 1;            /* 'Twas really not our ECHO */
+        if (gather_statistics(rts, (uint8_t *)icp, sizeof(*icp), cc,
+                      ntohs(icp->un.echo.sequence),
+                      reply_ttl, 0, tv, pr_addr(rts, from, sizeof *from),
+                      pr_echo_reply, rts->multicast)) {
+            fflush(stdout);
+            return 0;
+        }
+    } else {
+        /* We fall here when a redirect or source quench arrived. */
+
+        switch (icp->type) {
+        case ICMP_ECHO:
+            /* MUST NOT */
+            return 1;
+        case ICMP_SOURCE_QUENCH:
+        case ICMP_REDIRECT:
+        case ICMP_DEST_UNREACH:
+        case ICMP_TIME_EXCEEDED:
+        case ICMP_PARAMETERPROB:
+            {
+                struct iphdr *iph = (struct iphdr *)(&icp[1]);
+                struct icmphdr *icp1 = (struct icmphdr *)
+                        ((unsigned char *)iph + iph->ihl * 4);
+                int error_pkt;
+                if (cc < (int)(8 + sizeof(struct iphdr) + 8) ||
+                    cc < 8 + iph->ihl * 4 + 8)
+                    return 1;
+                if (icp1->type != ICMP_ECHO ||
+                    iph->daddr != rts->whereto.sin_addr.s_addr ||
+                    !is_ours(rts, sock, icp1->un.echo.id))
+                    return 1;
+                error_pkt = (icp->type != ICMP_REDIRECT &&
+                         icp->type != ICMP_SOURCE_QUENCH);
+                if (error_pkt) {
+                    acknowledge(rts, ntohs(icp1->un.echo.sequence));
+                    return 0;
+                }
+                if (rts->opt_quiet || rts->opt_flood)
+                    return 1;
+                print_timestamp(rts);
+                printf(_("From %s: icmp_seq=%u "), pr_addr(rts, from, sizeof *from),
+                       ntohs(icp1->un.echo.sequence));
+                if (csfailed)
+                    printf(_("(BAD CHECKSUM)"));
+                pr_icmph(rts, icp->type, icp->code, ntohl(icp->un.gateway), icp);
+                return 1;
+            }
+        default:
+            /* MUST NOT */
+            break;
+        }
+        if (rts->opt_flood && !(rts->opt_verbose || rts->opt_quiet)) {
+            if (!csfailed)
+                write_stdout("!E", 2);
+            else
+                write_stdout("!EC", 3);
+            return 0;
+        }
+        if (!rts->opt_verbose || rts->uid)
+            return 0;
+        if (rts->opt_ptimeofday) {
+            struct timeval recv_time;
+            gettimeofday(&recv_time, NULL);
+            printf("%lu.%06lu ", (unsigned long)recv_time.tv_sec, (unsigned long)recv_time.tv_usec);
+        }
+        printf(_("From %s: "), pr_addr(rts, from, sizeof *from));
+        if (csfailed) {
+            printf(_("(BAD CHECKSUM)\n"));
+            return 0;
+        }
+        pr_icmph(rts, icp->type, icp->code, ntohl(icp->un.gateway), icp);
+        return 0;
+    }
+
+    if (rts->opt_audible) {
+        putchar('\a');
+        if (rts->opt_flood)
+            fflush(stdout);
+    }
+    if (!rts->opt_flood) {
+        pr_options(rts, opts, olen + sizeof(struct iphdr));
+
+        putchar('\n');
+        fflush(stdout);
+    }
+    return 0;
 }
 
 /*
