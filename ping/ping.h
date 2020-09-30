@@ -118,6 +118,7 @@ int ping4_receive_error_msg(struct ping_rts *, socket_st *);
 int ping4_parse_reply(struct ping_rts *, socket_st *, struct msghdr *msg, int cc, void *addr, struct timeval *);
 int probe4_parse_reply(struct ping_rts *, socket_st *, struct msghdr *msg, int cc, void *addr, struct timeval *);
 void ping4_install_filter(struct ping_rts *rts, socket_st *);
+int get_c_type(char* interface);
 
 typedef struct ping_func_set_st {
 	int (*send_probe)(struct ping_rts *rts, socket_st *, void *packet, unsigned packet_size);
