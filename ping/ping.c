@@ -1518,7 +1518,7 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     iiobase = (struct iio *)((char *)packet + sizeof(icp) + sizeof(ext));
     // addr = (uint32_t*)iiobase + 1;
     // icp->type = ICMP_ECHO;
-    icp->type = ICMP4_EXTENDED_ECHO;
+    icp->type = ICMP4_EXT_ECHO;
     icp->code = 0;
     icp->checksum = 0;
     icp->un.echo.sequence = htons(rts->ntransmitted + 1);
@@ -1809,7 +1809,7 @@ int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
     icp = (struct icmphdr *)(buf + hlen);
     csfailed = in_cksum((unsigned short *)icp, cc, 0);
 
-    if (icp->type == ICMP_ECHOREPLY) {
+    if (icp->type == ICMP4_EXT_ECHO_REPLY) {
         if (!rts->broadcast_pings && !rts->multicast &&
             from->sin_addr.s_addr != rts->whereto.sin_addr.s_addr)
             return 1;
