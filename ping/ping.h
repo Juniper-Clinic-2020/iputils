@@ -66,8 +66,10 @@
 #define	MAXWAIT		10		/* max seconds to wait for response */
 #define MININTERVAL	10		/* Minimal interpacket gap */
 #define MINUSERINTERVAL	200		/* Minimal allowed interval for non-root */
-#define ICMP4_EXTENDED_ECHO  42
-#define ICMP6_EXTENDED_ECHO  160
+#define ICMP4_EXT_ECHO          42
+#define ICMP4_EXT_ECHO_REPLY    43
+#define ICMP6_EXT_ECHO          160
+#define ICMP6_Ext_ECHO_REPLY    161
 
 #define SCHINT(a)	(((a) <= MININTERVAL) ? MININTERVAL : (a))
 
