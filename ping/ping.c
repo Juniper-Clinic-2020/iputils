@@ -330,7 +330,7 @@ main(int argc, char **argv)
 		hints.ai_family = AF_INET6;
 
 	/* Parse command line options */
-	while ((ch = getopt(argc, argv, "h?" "4bRT:" "6F:N:" "aABc:dDfi:I:l:Lm:M:nOp:qQ:rs:S:t:UvVw:W:e")) != EOF) {
+	while ((ch = getopt(argc, argv, "h?" "4bRT:" "6F:N:" "aABc:dDfi:I:l:Lm:M:nOp:qQ:rs:S:t:UvVw:W:e:")) != EOF) {
 		switch(ch) {
 		/* IPv4 specific options */
 		case '4':
@@ -511,11 +511,15 @@ main(int argc, char **argv)
 				error(2, 0, _("bad linger time: %s"), optarg);
 			/* lingertime will be converted to usec later */
 			rts.lingertime = (int)(optval * 1000);
-			break;
 		}
+
+		break;
+		
 		case 'e':
         {
             rts.probe = 1;
+			printf("%s", optarg);
+			rts.interface = optarg;
             break;
         }
 		default:
@@ -1496,6 +1500,10 @@ int ping4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 	return (cc == i ? 0 : i);
 }
 
+// int get_c_type(char* interface) {
+
+// }
+
 /* pinger for probe
  * Constructs an ICMP Probe message as defined in RFC 8335
  * Based on the code for ping4_send_probe
@@ -1528,9 +1536,10 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     ext.checksum = 0;
     iio.len = htons(sizeof(iio));
     iio.class = 3;
-    iio.ctype = 3;
+    iio.ctype = 3; //get_c_type(rts->interface);
     iio.afi = htons(1);
     iio.rsvd = 0;
+	printf("%s", rts->interface);
 
     // Modify following line - pad with 0 if not terminating on 32 bit boundary
     memcpy((unsigned short *)&iio.addr, &rts->whereto.sin_addr, sizeof(rts->whereto.sin_addr));

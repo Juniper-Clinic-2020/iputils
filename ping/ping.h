@@ -211,6 +211,7 @@ struct ping_rts {
 	/* Used only in ping_common.c */
 	int screen_width;
 	int probe;
+	char* interface;
 #ifdef HAVE_LIBCAP
 	cap_value_t cap_raw;
 	cap_value_t cap_admin;
