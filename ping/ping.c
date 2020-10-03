@@ -514,7 +514,7 @@ main(int argc, char **argv)
 		case 'e':
         {
             rts.probe = 1;
-			printf("%s", optarg);
+			printf("%s\n", optarg);
 			rts.interface = optarg;
             break;
         }
@@ -1497,15 +1497,13 @@ int ping4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 }
 
 int get_c_type(char* interface) {
-	struct in_addr addrptr;
-
-	if(strchr(interface, '.')){
+	if(strchr(interface, '.')) {
 		return 3;
 	}
 	if(isalpha(interface[0])) {
 		return 2;
-	} else
-	{
+	} 
+    else {
 		return 1;
 	}
 	
@@ -1520,17 +1518,17 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 {
     struct icmphdr  *icp;
     struct exthdr   ext;
-    struct iiohdr      iio;
+    struct iiohdr   iio;
     int cc;
     int i;
     struct exthdr   *extbase;
-    struct iio      *iiobase;
-    // uint32_t        *addr;
-
+    struct iiohdr      *iiobase;
+    uint32_t        iio_ip_hdr = 0;
+    uint32_t        dest_addr = 0;
 
     icp = (struct icmphdr *)packet;
     extbase = (struct exthdr *)(icp + 1);
-    iiobase = (struct iio *)((char *)packet + sizeof(icp) + sizeof(ext));
+    iiobase = (struct iiohdr *)((char *)packet + sizeof(icp) + sizeof(ext));
     // addr = (uint32_t*)iiobase + 1;
     // icp->type = ICMP_ECHO;
     icp->type = ICMP4_EXT_ECHO;
@@ -1541,13 +1539,12 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     WRITE_VERSION(ext.v_rsvd , 2);
     ext.v_rsvd = htons(ext.v_rsvd);
     ext.checksum = 0;
-    iio.len = htons(sizeof(iio));
+    // TODO: Modfiy len to scale with interface identifier
+    iio.len = sizeof(struct iiohdr);
     iio.class = 3;
     iio.ctype = get_c_type(rts->interface);
-    // iio.afi = htons(1);
-    // iio.rsvd = 0;
-	printf("%s", rts->interface);
-	printf("%d", iio.ctype);
+	printf("%s\n", rts->interface);
+	printf("%d\n", iio.ctype);
 
     // Modify following line - pad with 0 if not terminating on 32 bit boundary
     // memcpy((unsigned short *)&iio.addr, &rts->whereto.sin_addr, sizeof(rts->whereto.sin_addr));
@@ -1590,6 +1587,23 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     /* compute ICMP checksum here */
     icp->checksum = in_cksum((unsigned short *)icp, cc, 0);
 
+    // Create IIO addr info based on C-Type
+    if(iio.ctype == 3) {
+        iio.len += 4;
+        iio_ip_hdr = (1 << 16) | (4 << 8);
+        iio_ip_hdr = htonl(iio_ip_hdr);
+        dest_addr = rts->whereto.sin_addr.s_addr;
+        memcpy(iiobase + 1, &iio_ip_hdr, sizeof(iio_ip_hdr));
+        memcpy(iiobase + 2, &dest_addr, sizeof(dest_addr));
+    }
+    else {
+        iio.len += strlen(rts->interface);
+        // printf("rts size %d, rts = %s\n", strlen(rts->interface), rts->interface);
+        memset(iiobase + 1, 0, strlen(rts->interface) + (4 - (strlen(rts->interface) % 4)));
+        memcpy(iiobase + 1, rts->interface, strlen(rts->interface));
+        // memset(iiobase + 1 + (strlen(rts->interface) / 4), 0, 4 - (strlen(rts->interface) % 4));
+    }
+    iio.len = htons(iio.len);
     // if (rts->timing && !rts->opt_latency) {
     //     struct timeval tmp_tv;
     //     gettimeofday(&tmp_tv, NULL);
@@ -1598,6 +1612,9 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     // }
     memcpy(extbase, &ext, sizeof(ext));
     memcpy(iiobase, &iio, sizeof(iio));
+
+    
+
     // memcpy(iiobase + 1, &addr, iio.addrlen);
     icp->checksum = in_cksum((unsigned short *)&ext, sizeof(ext), ~icp->checksum);
     icp->checksum = in_cksum((unsigned short *)&iio, sizeof(iio), ~icp->checksum);
