@@ -1599,7 +1599,8 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     else {
         iio.len += strlen(rts->interface);
         // printf("rts size %d, rts = %s\n", strlen(rts->interface), rts->interface);
-        memset(iiobase + 1, 0, strlen(rts->interface) + (4 - (strlen(rts->interface) % 4)));
+        // pad to 32 bit boundary
+        memset(iiobase + 1 + ((strlen(rts->interface)-1)/4), 0, 4);
         memcpy(iiobase + 1, rts->interface, strlen(rts->interface));
         // memset(iiobase + 1 + (strlen(rts->interface) / 4), 0, 4 - (strlen(rts->interface) % 4));
     }
