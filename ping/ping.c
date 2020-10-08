@@ -1522,7 +1522,7 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     int cc;
     int i;
     struct exthdr   *extbase;
-    struct iiohdr      *iiobase;
+    struct iiohdr   *iiobase;
     uint32_t        iio_ip_hdr = 0;
     uint32_t        dest_addr = 0;
 
@@ -1539,12 +1539,9 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     WRITE_VERSION(ext.v_rsvd , 2);
     ext.v_rsvd = htons(ext.v_rsvd);
     ext.checksum = 0;
-    // TODO: Modfiy len to scale with interface identifier
     iio.len = sizeof(struct iiohdr);
     iio.class = 3;
     iio.ctype = get_c_type(rts->interface);
-	printf("%s\n", rts->interface);
-	printf("%d\n", iio.ctype);
 
     // Modify following line - pad with 0 if not terminating on 32 bit boundary
     // memcpy((unsigned short *)&iio.addr, &rts->whereto.sin_addr, sizeof(rts->whereto.sin_addr));
@@ -1614,12 +1611,16 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     
     
     iio.len = htons(iio.len);
+	/* Construct timestamp for message */
     // if (rts->timing && !rts->opt_latency) {
     //     struct timeval tmp_tv;
     //     gettimeofday(&tmp_tv, NULL);
     //     memcpy(iiobase + (iio.addrlen / 4), &tmp_tv, sizeof(tmp_tv));
     //     icp->checksum = in_cksum((unsigned short *)&tmp_tv, sizeof(tmp_tv), ~icp->checksum);
     // }
+
+	/* I think the following code should compute the proper checksum, but it doesn't for some reason */
+	// ext.checksum = in_cksum((unsigned short *)extbase, sizeof(ext) + iio.len, 0);
     memcpy(extbase, &ext, sizeof(ext));
     memcpy(iiobase, &iio, sizeof(iio));
 
