@@ -1501,10 +1501,10 @@ int get_c_type(char* interface) {
 		return 3;
 	}
 	if(isalpha(interface[0])) {
-		return 2;
+		return 1;
 	} 
     else {
-		return 1;
+		return 2;
 	}
 	
 }
@@ -1586,17 +1586,9 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 
     /* compute ICMP checksum here */
     icp->checksum = in_cksum((unsigned short *)icp, cc, 0);
-
+    printf("C-type = %d\n", iio.ctype);
     // Create IIO addr info based on C-Type
-    if(iio.ctype == 3) {
-        iio.len += 4;
-        iio_ip_hdr = (1 << 16) | (4 << 8);
-        iio_ip_hdr = htonl(iio_ip_hdr);
-        dest_addr = rts->whereto.sin_addr.s_addr;
-        memcpy(iiobase + 1, &iio_ip_hdr, sizeof(iio_ip_hdr));
-        memcpy(iiobase + 2, &dest_addr, sizeof(dest_addr));
-    }
-    else {
+    if (iio.ctype == 1){
         iio.len += strlen(rts->interface);
         // printf("rts size %d, rts = %s\n", strlen(rts->interface), rts->interface);
         // pad to 32 bit boundary
@@ -1604,6 +1596,23 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
         memcpy(iiobase + 1, rts->interface, strlen(rts->interface));
         // memset(iiobase + 1 + (strlen(rts->interface) / 4), 0, 4 - (strlen(rts->interface) % 4));
     }
+    else {
+        iio.len += 4;
+        if (iio.ctype == 3) {
+            iio_ip_hdr = (1 << 16) | (4 << 8);
+            iio_ip_hdr = htonl(iio_ip_hdr);
+            dest_addr = rts->whereto.sin_addr.s_addr;
+            memcpy(iiobase + 1, &iio_ip_hdr, sizeof(iio_ip_hdr));
+            memcpy(iiobase + 2, &dest_addr, sizeof(dest_addr));
+        }
+        else {
+            // Using iio_ip_hdr as a temp variable to store ifIndex
+            iio_ip_hdr = htonl(atoi(rts->interface));
+            memcpy(iiobase + 1, &iio_ip_hdr, 4);
+        }
+    }
+    
+    
     iio.len = htons(iio.len);
     // if (rts->timing && !rts->opt_latency) {
     //     struct timeval tmp_tv;
