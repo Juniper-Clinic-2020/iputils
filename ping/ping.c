@@ -1534,7 +1534,7 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     icp->type = ICMP4_EXT_ECHO;
     icp->code = 0;
     icp->checksum = 0;
-    icp->un.echo.sequence = htons(rts->ntransmitted + 1);
+    icp->un.echo.sequence = htons(((rts->ntransmitted + 1) << 8) | 1);
     icp->un.echo.id = rts->ident;            /* ID */
     WRITE_VERSION(ext.v_rsvd , 2);
     ext.v_rsvd = htons(ext.v_rsvd);
