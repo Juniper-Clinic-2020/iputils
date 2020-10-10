@@ -737,6 +737,7 @@ int gather_statistics(struct ping_rts *rts, uint8_t *icmph, int icmplen,
 	long triptime = 0;
 	uint8_t *ptr = icmph + icmplen;
 
+    printf("in gather_statistics\n");
 	++rts->nreceived;
 	if (!csfailed)
 		acknowledge(rts, seq);
@@ -830,6 +831,7 @@ restamp:
 			printf(_(" (BAD CHECKSUM!)"));
 
 		/* check the data */
+        printf("Before checking the data\n");
 		cp = ((unsigned char *)ptr) + sizeof(struct timeval);
 		dp = &rts->outpack[8 + sizeof(struct timeval)];
 		for (i = sizeof(struct timeval); i < rts->datalen; ++i, ++cp, ++dp) {

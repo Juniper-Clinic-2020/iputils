@@ -1570,17 +1570,6 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 
     cc = rts->datalen + 8;            /* skips ICMP portion */
 
-    /* compute Extended Header checksum here */
-    // TODO: Calculating checksum weird for some reason
-    // ext.checksum = in_cksum((unsigned short *)&ext, sizeof(ext), 0);
-    // printf("checksum: %x\n", ext.checksum);
-    // ext.checksum = in_cksum((unsigned short *)&iio, sizeof(iio), ~ext.checksum);
-    // printf("checksum: %x\n", ext.checksum);
-
-    // ext.checksum = in_cksum((unsigned short *)&iio + 1, cc - sizeof(icp) - sizeof(ext) - sizeof(iio), ~ext.checksum);
-    // printf("checksum: %x\n", ext.checksum);
-
-
     /* compute ICMP checksum here */
     icp->checksum = in_cksum((unsigned short *)icp, cc, 0);
     printf("C-type = %d\n", iio.ctype);
@@ -1596,6 +1585,7 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     else {
         iio.len += 4;
         if (iio.ctype == 3) {
+            iio.len += 4;
             iio_ip_hdr = (1 << 16) | (4 << 8);
             iio_ip_hdr = htonl(iio_ip_hdr);
             dest_addr = rts->whereto.sin_addr.s_addr;
@@ -1620,13 +1610,16 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     // }
 
 	/* I think the following code should compute the proper checksum, but it doesn't for some reason */
-	// ext.checksum = in_cksum((unsigned short *)extbase, sizeof(ext) + iio.len, 0);
+    // ext.checksum = in_cksum((unsigned short *)&ext, sizeof(ext), 0);
+    // ext.checksum = in_cksum((unsigned short *)&ext, sizeof(iio), ~ext.checksum);
+    // ext.checksum = in_cksum((unsigned short *)(iiobase + 1), ntohs(iio.len) - sizeof(iio), ~ext.checksum);
+    // ext.checksum = htons(ext.checksum);
+
+
     memcpy(extbase, &ext, sizeof(ext));
     memcpy(iiobase, &iio, sizeof(iio));
 
     
-
-    // memcpy(iiobase + 1, &addr, iio.addrlen);
     icp->checksum = in_cksum((unsigned short *)&ext, sizeof(ext), ~icp->checksum);
     icp->checksum = in_cksum((unsigned short *)&iio, sizeof(iio), ~icp->checksum);
     // icp->checksum = in_cksum((unsigned short *)addr, iio.addrlen, ~icp->checksum);
@@ -1856,22 +1849,31 @@ int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
 
     if (icp->type == ICMP4_EXT_ECHO_REPLY) {
         if (!rts->broadcast_pings && !rts->multicast &&
-            from->sin_addr.s_addr != rts->whereto.sin_addr.s_addr)
-            return 1;
-        if (!is_ours(rts, sock, icp->un.echo.id))
-            return 1;            /* 'Twas not our ECHO */
-        if (!contains_pattern_in_payload(rts, (uint8_t *)(icp + 1)))
-            return 1;            /* 'Twas really not our ECHO */
+            from->sin_addr.s_addr != rts->whereto.sin_addr.s_addr) {
+                printf("not broadcast, not multicast, and from is not whereto\n");
+                return 1;
+            }
+        if (!is_ours(rts, sock, icp->un.echo.id)) {
+                printf("'Twas not our ECHO\b");
+                return 1;            /* 'Twas not our ECHO */
+        }
+        if (!contains_pattern_in_payload(rts, (uint8_t *)(icp + 1))) {
+                printf("'Twas really not our ECHO\n");
+                return 1;            /* 'Twas really not our ECHO */
+        }
         if (gather_statistics(rts, (uint8_t *)icp, sizeof(*icp), cc,
                       ntohs(icp->un.echo.sequence),
                       reply_ttl, 0, tv, pr_addr(rts, from, sizeof *from),
                       pr_echo_reply, rts->multicast)) {
+            printf("Gather_statistics = 1\n");
             fflush(stdout);
             return 0;
         }
     } else {
         /* We fall here when a redirect or source quench arrived. */
+        printf("Else\n");
 
+        // TODO: Modify following case statement to handle icmp extended echo (?)
         switch (icp->type) {
         case ICMP_ECHO:
             /* MUST NOT */
