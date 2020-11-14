@@ -1497,13 +1497,13 @@ int ping4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 }
 
 int get_c_type(char* interface) {
-	if(strchr(interface, '.')) {
+	if(strchr(interface, '.') || strchr(interface,':')) {
 		return 3;
 	}
 	if(isalpha(interface[0])) {
 		return 1;
-	} 
-    else {
+	}
+	else {
 		return 2;
 	}
 	
@@ -1524,7 +1524,6 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     struct exthdr   *extbase;
     struct iiohdr   *iiobase;
     uint32_t        iio_ip_hdr = 0;
-    uint32_t        dest_addr = 0;
 
     icp = (struct icmphdr *)packet;
     extbase = (struct exthdr *)(icp + 1);
@@ -1585,13 +1584,22 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     else {
         iio.len += 4;
         if (iio.ctype == 3) {
-            iio.len += 4;
-            iio_ip_hdr = (1 << 16) | (4 << 8);
-            iio_ip_hdr = htonl(iio_ip_hdr);
-            dest_addr = rts->whereto.sin_addr.s_addr;
-            memcpy(iiobase + 1, &iio_ip_hdr, sizeof(iio_ip_hdr));
-            memcpy(iiobase + 2, &dest_addr, sizeof(dest_addr));
-        }
+			// if we're sending an ipv4 address
+			if(strchr(rts->interface, '.')) {
+		    	iio.len += 4;
+        	    iio_ip_hdr = (1 << 16) | (4 << 8);	// set up AFI and length
+        	    iio_ip_hdr = htonl(iio_ip_hdr);
+				inet_pton(AF_INET, rts->interface, (iiobase+2));
+        	    memcpy(iiobase + 1, &iio_ip_hdr, sizeof(iio_ip_hdr));
+ 			}
+			else {
+				iio.len += 16;
+				iio_ip_hdr = (2 << 16) | (16 << 8);	// set up AFI and length
+				iio_ip_hdr = htonl(iio_ip_hdr);
+				inet_pton(AF_INET6, rts->interface, (iiobase+2));
+				memcpy(iiobase + 1, &iio_ip_hdr, sizeof(iio_ip_hdr));
+			}
+       }
         else {
             // Using iio_ip_hdr as a temp variable to store ifIndex
             iio_ip_hdr = htonl(atoi(rts->interface));
