@@ -349,8 +349,8 @@ int pinger(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock)
 
 resend:
 	if(rts->probe == 0) i = fset->send_probe(rts, sock, rts->outpack, sizeof(rts->outpack));
-	else i = probe4_send_probe(rts, sock, rts->outpack, sizeof(rts->outpack));
-
+	else i = fset->send_ext_echo(rts, sock, rts->outpack, sizeof(rts->outpack));
+	printf("after send i = %d\n", i);
 	if (i == 0) {
 		oom_count = 0;
 		advance_ntransmitted(rts);
@@ -666,7 +666,9 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 			msg.msg_control = ans_data;
 			msg.msg_controllen = sizeof(ans_data);
 
+			printf("cc: %d\n", cc);
 			cc = recvmsg(sock->fd, &msg, polling);
+			printf("cc after recvmsg: %d\n", cc);
 			polling = MSG_DONTWAIT;
 
 			if (cc < 0) {

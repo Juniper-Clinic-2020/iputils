@@ -122,6 +122,7 @@ int get_c_type(char* interface);
 
 typedef struct ping_func_set_st {
 	int (*send_probe)(struct ping_rts *rts, socket_st *, void *packet, unsigned packet_size);
+	int (*send_ext_echo)(struct ping_rts *rts, socket_st *, void *packet, unsigned packet_size);
 	int (*receive_error_msg)(struct ping_rts *rts, socket_st *sock);
 	int (*parse_reply)(struct ping_rts *rts, socket_st *, struct msghdr *msg, int len, void *addr, struct timeval *);
 	void (*install_filter)(struct ping_rts *rts, socket_st *);
@@ -331,6 +332,7 @@ extern int __schedule_exit(int next);
 
 static inline int schedule_exit(struct ping_rts *rts, int next)
 {
+	printf("in schedule_exit\n");
 	if (rts->npackets && rts->ntransmitted >= rts->npackets && !rts->deadline)
 		next = __schedule_exit(next);
 	return next;
