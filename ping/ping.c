@@ -64,7 +64,7 @@ struct ping_rts *global_rts;
 #ifndef ICMP_FILTER
 #define ICMP_FILTER	1
 struct icmp_filter {
-	uint32_t	data;
+	uint64_t	data;
 };
 #endif
 
@@ -85,7 +85,9 @@ ping_func_set_st ping4_func_set = {
 	.send_ext_echo = probe4_send_probe,
 	.receive_error_msg = ping4_receive_error_msg,
 	.parse_reply = ping4_parse_reply,
-	.install_filter = ping4_install_filter
+	.parse_ext_reply = probe4_parse_reply,
+	.install_filter = ping4_install_filter,
+	.install_probe_filter = probe4_install_filter,
 };
 
 #define	MAXIPLEN	60
@@ -853,7 +855,9 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 			      (1 << ICMP_TIME_EXCEEDED) |
 			      (1 << ICMP_PARAMETERPROB) |
 			      (1 << ICMP_REDIRECT)	|
-			      (1 << ICMP_ECHOREPLY));
+			      (1 << ICMP_ECHOREPLY) |
+				  (1 << ICMP4_EXT_ECHO_REPLY)
+				  );
 		if (setsockopt(sock->fd, SOL_RAW, ICMP_FILTER, &filt, sizeof filt) == -1)
 			error(0, errno, _("WARNING: setsockopt(ICMP_FILTER)"));
 	}
@@ -1855,6 +1859,8 @@ int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
     cc -= hlen;
     icp = (struct icmphdr *)(buf + hlen);
     csfailed = in_cksum((unsigned short *)icp, cc, 0);
+	printf("type:%d", icp->type);
+	printf("code:%d", icp->code);
 
     if (icp->type == ICMP4_EXT_ECHO_REPLY) {
         if (!rts->broadcast_pings && !rts->multicast &&
@@ -2025,3 +2031,36 @@ void ping4_install_filter(struct ping_rts *rts, socket_st *sock)
 	if (setsockopt(sock->fd, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
 		error(0, errno, _("WARNING: failed to install socket filter"));
 }
+
+
+void probe4_install_filter(struct ping_rts *rts, socket_st *sock)
+{
+	printf("probe filter");
+	// return;
+	// static int once;
+	// static struct sock_filter insns[] = {
+	// 	BPF_STMT(BPF_LDX | BPF_B   | BPF_MSH, 0),	/* Skip IP header due BSD, see ping6. */
+	// 	BPF_STMT(BPF_LD  | BPF_H   | BPF_IND, 4),	/* Load icmp echo ident */
+	// 	BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0xAAAA, 0, 1), /* Ours? */
+	// 	BPF_STMT(BPF_RET | BPF_K, ~0U),			/* Yes, it passes. */
+	// 	BPF_STMT(BPF_LD  | BPF_B   | BPF_IND, 0),	/* Load icmp type */
+	// 	BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, ICMP_ECHOREPLY, 1, 0), /* Echo? */
+	// 	BPF_STMT(BPF_RET | BPF_K, 0xFFFFFFF),		/* No. It passes. */
+	// 	BPF_STMT(BPF_RET | BPF_K, 0)			/* Echo with wrong ident. Reject. */
+	// };
+	// static struct sock_fprog filter = {
+	// 	sizeof insns / sizeof(insns[0]),
+	// 	insns
+	// };
+
+	// if (once)
+	// 	return;
+	// once = 1;
+
+	// /* Patch bpflet for current identifier. */
+	// insns[2] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, htons(rts->ident), 0, 1);
+
+	// if (setsockopt(sock->fd, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
+	// 	error(0, errno, _("WARNING: failed to install socket filter"));
+}
+

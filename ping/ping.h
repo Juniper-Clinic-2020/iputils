@@ -118,6 +118,7 @@ int ping4_receive_error_msg(struct ping_rts *, socket_st *);
 int ping4_parse_reply(struct ping_rts *, socket_st *, struct msghdr *msg, int cc, void *addr, struct timeval *);
 int probe4_parse_reply(struct ping_rts *, socket_st *, struct msghdr *msg, int cc, void *addr, struct timeval *);
 void ping4_install_filter(struct ping_rts *rts, socket_st *);
+void probe4_install_filter(struct ping_rts *rts, socket_st *);
 int get_c_type(char* interface);
 
 typedef struct ping_func_set_st {
@@ -125,7 +126,11 @@ typedef struct ping_func_set_st {
 	int (*send_ext_echo)(struct ping_rts *rts, socket_st *, void *packet, unsigned packet_size);
 	int (*receive_error_msg)(struct ping_rts *rts, socket_st *sock);
 	int (*parse_reply)(struct ping_rts *rts, socket_st *, struct msghdr *msg, int len, void *addr, struct timeval *);
+	int (*parse_ext_reply)(struct ping_rts *rts, struct socket_st *sock,
+              struct msghdr *msg, int cc, void *addr,
+              struct timeval *tv);
 	void (*install_filter)(struct ping_rts *rts, socket_st *);
+	void (*install_probe_filter)(struct ping_rts *rts, socket_st *sock);
 } ping_func_set_st;
 
 /* Node Information query */

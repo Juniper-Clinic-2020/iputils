@@ -710,7 +710,7 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 				}
 
 				if(rts->probe == 0) not_ours = fset->parse_reply(rts, sock, &msg, cc, addrbuf, recv_timep);
-                else not_ours = probe4_parse_reply(rts, sock, &msg, cc, addrbuf, recv_timep);
+                else not_ours = fset->parse_ext_reply(rts, sock, &msg, cc, addrbuf, recv_timep);
 			}
 
 			/* See? ... someone runs another ping on this host. */
