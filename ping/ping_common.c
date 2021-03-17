@@ -53,6 +53,7 @@ void usage(void)
 		"  -c <count>         stop after <count> replies\n"
 		"  -D                 print timestamps\n"
 		"  -d                 use SO_DEBUG socket option\n"
+		"  -e				  use extended echo request\n"
 		"  -f                 flood ping\n"
 		"  -h                 print help and exit\n"
 		"  -I <interface>     either interface name or address\n"
@@ -249,6 +250,8 @@ int __schedule_exit(int next)
 {
 	static unsigned long waittime;
 	struct itimerval it;
+
+	printf("\nidkmak\n");
 
 	if (waittime)
 		return next;
@@ -600,8 +603,8 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 
 		/* Send probes scheduled to this time. */
 		do {
-			next = pinger(rts, fset, sock);
-			next = schedule_exit(rts, next);
+			next = pinger(rts, fset, sock); // this does the seending
+			next = schedule_exit(rts, next); // this just counts the packets to make sure it doesnt go over the number of packets its supposed to send
 		} while (next <= 0);
 
 		/* "next" is time to send next probe, if positive.
@@ -666,6 +669,8 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 			msg.msg_control = ans_data;
 			msg.msg_controllen = sizeof(ans_data);
 
+			printf("iovlen: %d", iov.iov_len);
+
 			printf("cc: %d\n", cc);
 			cc = recvmsg(sock->fd, &msg, polling);
 			printf("cc after recvmsg: %d\n", cc);
@@ -708,14 +713,15 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 						gettimeofday(&recv_time, NULL);
 					recv_timep = &recv_time;
 				}
-
 				if(rts->probe == 0) not_ours = fset->parse_reply(rts, sock, &msg, cc, addrbuf, recv_timep);
                 else not_ours = fset->parse_ext_reply(rts, sock, &msg, cc, addrbuf, recv_timep);
 			}
 
 			/* See? ... someone runs another ping on this host. */
-			if (not_ours && sock->socktype == SOCK_RAW)
+			if (not_ours && sock->socktype == SOCK_RAW && rts->probe == 0)
 				fset->install_filter(rts, sock);
+			else if(not_ours && sock->socktype == SOCK_RAW && rts->probe == 0) 
+				fset->install_probe_filter(rts, sock);
 
 			/* If nothing is in flight, "break" returns us to pinger. */
 			if (in_flight(rts) == 0)
