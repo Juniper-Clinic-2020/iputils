@@ -1530,8 +1530,8 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     extbase = (struct exthdr *)(icp + 1);
     iiobase = (struct iiohdr *)((char *)packet + sizeof(icp) + sizeof(ext));
     // addr = (uint32_t*)iiobase + 1;
-    icp->type = ICMP_ECHO;
-    //icp->type = ICMP4_EXT_ECHO;
+    //icp->type = ICMP_ECHO;
+    icp->type = ICMP4_EXT_ECHO;
     icp->code = 0;
     icp->checksum = 0;
     icp->un.echo.sequence = htons(((rts->ntransmitted + 1) << 8) | 1);
