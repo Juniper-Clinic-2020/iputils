@@ -93,6 +93,13 @@ struct run_state {
 		mapped:1;
 };
 
+/* Create struct to read iovec here */
+struct rfc4884_data {
+	struct probehdr probehdr;
+	char buff[64];
+};
+
+
 /*
  * All includes, definitions, struct declarations, and global variables are
  * above.  After this comment all you can find is functions.
@@ -124,10 +131,14 @@ static void print_host(struct run_state const *const ctl, char const *const a,
 	printf("%*s", HOST_COLUMN_SIZE - plen, "");
 }
 
+/* Handles the recieved messages
+ * Main code will go here
+ */
 static int recverr(struct run_state *const ctl)
 {
 	ssize_t recv_size;
-	struct probehdr rcvbuf;
+	struct rfc4884_data rcvbuf;
+	//struct probehdr rcvbuf;
 	char cbuf[ANCILLARY_DATA_LEN];
 	struct cmsghdr *cmsg;
 	struct sock_extended_err *e;
@@ -154,13 +165,13 @@ static int recverr(struct run_state *const ctl)
 		.msg_controllen = sizeof(cbuf),
 		0
 	};
-
  restart:
 	memset(&rcvbuf, -1, sizeof(rcvbuf));
 	msg = reset;
 
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	recv_size = recvmsg(ctl->socket_fd, &msg, MSG_ERRQUEUE);
+
 	if (recv_size < 0) {
 		if (errno == EAGAIN)
 			return progress;
@@ -190,11 +201,11 @@ static int recverr(struct run_state *const ctl)
 		ctl->his[slot].hops = 0;
 	}
 	if (recv_size == sizeof(rcvbuf)) {
-		if (rcvbuf.ttl == 0 || rcvbuf.ts.tv_sec == 0)
+		if (rcvbuf.probehdr.ttl == 0 || rcvbuf.probehdr.ts.tv_sec == 0)
 			broken_router = 1;
 		else {
-			sndhops = rcvbuf.ttl;
-			retts = &rcvbuf.ts;
+			sndhops = rcvbuf.probehdr.ttl;
+			retts = &rcvbuf.probehdr.ts;
 		}
 	}
 
@@ -312,6 +323,19 @@ static int recverr(struct run_state *const ctl)
 		printf("!P\n");
 		return 0;
 	case EHOSTUNREACH:
+		/* Main loop runs this code, since when ttl expires
+		 * we get back a EHOSTUNREACH ICMP message
+		 */
+		/* Print control info related to tracepath */
+		for(unsigned long i = 0; i < sizeof(struct probehdr); i++) {
+			printf("%x", *((char *)iov.iov_base + i));
+		}
+		printf(" ");
+		/* Begin printing data after control info */
+		for(int i = 0; i < 64; i++) {
+			printf("%x", rcvbuf.buff[i]);
+		}
+		printf("\n");
 		if ((e->ee_origin == SO_EE_ORIGIN_ICMP &&
 		     e->ee_type == ICMP_TIME_EXCEEDED &&
 		     e->ee_code == ICMP_EXC_TTL) ||
