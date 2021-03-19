@@ -40,6 +40,7 @@
 #else
 # define getnameinfo_flags	0
 #endif
+#define RFC5837_MAX_SIZE	100
 
 enum {
 	MAX_PROBES = 10,
@@ -94,9 +95,11 @@ struct run_state {
 };
 
 /* Create struct to read iovec here */
-struct rfc4884_data {
-	struct probehdr probehdr;
-	char buff[64];
+struct rfc5837_data {
+	union {
+		struct probehdr probehdr;
+		char buff[128 + RFC5837_MAX_SIZE];
+	} un;
 };
 
 
@@ -137,7 +140,7 @@ static void print_host(struct run_state const *const ctl, char const *const a,
 static int recverr(struct run_state *const ctl)
 {
 	ssize_t recv_size;
-	struct rfc4884_data rcvbuf;
+	struct rfc5837_data rcvbuf;
 	//struct probehdr rcvbuf;
 	char cbuf[ANCILLARY_DATA_LEN];
 	struct cmsghdr *cmsg;
@@ -201,11 +204,11 @@ static int recverr(struct run_state *const ctl)
 		ctl->his[slot].hops = 0;
 	}
 	if (recv_size == sizeof(rcvbuf)) {
-		if (rcvbuf.probehdr.ttl == 0 || rcvbuf.probehdr.ts.tv_sec == 0)
+		if (rcvbuf.un.probehdr.ttl == 0 || rcvbuf.un.probehdr.ts.tv_sec == 0)
 			broken_router = 1;
 		else {
-			sndhops = rcvbuf.probehdr.ttl;
-			retts = &rcvbuf.probehdr.ts;
+			sndhops = rcvbuf.un.probehdr.ttl;
+			retts = &rcvbuf.un.probehdr.ts;
 		}
 	}
 
@@ -287,6 +290,17 @@ static int recverr(struct run_state *const ctl)
 		else
 			print_host(ctl, hnamebuf, abuf);
 	}
+	/* Print RFC 5837 stuff here */
+	/* Print control info related to tracepath */
+	for(unsigned long i = 0; i < sizeof(struct probehdr); i++) {
+		printf("%x", rcvbuf.un.buff[i]);
+	}
+	printf(" ");
+	/* Begin printing data after control info */
+	for(int i = 0; i < 64; i++) {
+		printf("%x", rcvbuf.un.buff[i + sizeof(struct probehdr)]);
+	}
+	printf("\n");
 
 	if (retts) {
 		struct timespec res;
@@ -305,6 +319,7 @@ static int recverr(struct run_state *const ctl)
 	else
 		rethops = 256 - rethops;
 
+	
 	switch (e->ee_errno) {
 	case ETIMEDOUT:
 		printf("\n");
@@ -323,19 +338,6 @@ static int recverr(struct run_state *const ctl)
 		printf("!P\n");
 		return 0;
 	case EHOSTUNREACH:
-		/* Main loop runs this code, since when ttl expires
-		 * we get back a EHOSTUNREACH ICMP message
-		 */
-		/* Print control info related to tracepath */
-		for(unsigned long i = 0; i < sizeof(struct probehdr); i++) {
-			printf("%x", *((char *)iov.iov_base + i));
-		}
-		printf(" ");
-		/* Begin printing data after control info */
-		for(int i = 0; i < 64; i++) {
-			printf("%x", rcvbuf.buff[i]);
-		}
-		printf("\n");
 		if ((e->ee_origin == SO_EE_ORIGIN_ICMP &&
 		     e->ee_type == ICMP_TIME_EXCEEDED &&
 		     e->ee_code == ICMP_EXC_TTL) ||
