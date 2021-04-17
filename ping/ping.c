@@ -1535,6 +1535,7 @@ int ping4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 		}
 	}
 
+send_msg:
 	cc = rts->datalen + 8;			/* skips ICMP portion */
 
 	/* compute ICMP checksum here */
@@ -1543,10 +1544,13 @@ int ping4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 	if (rts->timing && !rts->opt_latency) {
 		struct timeval tmp_tv;
 		gettimeofday(&tmp_tv, NULL);
-		memcpy(icp + 1, &tmp_tv, sizeof(tmp_tv));
+		printf("timeval %x\n", tmp_tv);
+		if (rts->probe == 0)
+			memcpy(icp + 1, &tmp_tv, sizeof(tmp_tv));
+		else if (rts->probe == 1)
+			memcpy((char *)iiobase + ntohs(iio.len), &tmp_tv, sizeof(tmp_tv));
 		icp->checksum = in_cksum((unsigned short *)&tmp_tv, sizeof(tmp_tv), ~icp->checksum);
 	}
-send_msg:
 	i = sendto(sock->fd, icp, cc, 0, (struct sockaddr *)&rts->whereto, sizeof(rts->whereto));
 
 	return (cc == i ? 0 : i);
@@ -1568,10 +1572,7 @@ build_probe:
 		return -1;
 
 	rcvd_clear(rts, rts->ntransmitted + 1);
-	cc = rts->datalen + 8;            /* skips ICMP portion */
 
-    	/* compute ICMP checksum here */
-    	icp->checksum = in_cksum((unsigned short *)icp, cc, 0);
     	// Create IIO addr info based on C-Type
 	switch (iio.ctype) {
 	case EXT_ECHO_CTYPE_NAME:
