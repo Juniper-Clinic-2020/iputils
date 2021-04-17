@@ -240,10 +240,13 @@ if build_ping == true
 	subdir ('ping')
 endif
 
+incdir = include_directories('/home/ubuntu/net-next/usr/include')
+
 if build_tracepath == true
 	executable('tracepath', ['tracepath.c', git_version_h],
 		dependencies : [idn_dep, intl_dep],
 		link_with : [libcommon],
+		include_directories : incdir,
 		install: true)
 endif
 
