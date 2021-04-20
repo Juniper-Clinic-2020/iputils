@@ -74,7 +74,7 @@ struct probehdr {
 			uint32_t ttl;
 			struct timespec ts;
 		} probedata;
-		char bytes[512];
+		char bytes[576];
 	} un;
 };
 
@@ -183,11 +183,16 @@ static void print_interface_identification(char *pkt, unsigned pkt_len, unsigned
 				offset += 8;
 			}
 			if (name_flag) {
-				if (offset + sizeof(name_len) > pkt_len)
+				if (offset + sizeof(name_len) > pkt_len) {
+					printf(" offset=%d; pkt_len=%d", offset, pkt_len);
 					goto err;
+
+				}
 				name_len = pkt[offset];
-				if (offset + name_len > pkt_len)
+				if (offset + name_len > pkt_len) {
+					printf(" offset=%d; name_len=%d; pkt_len=%d", offset, name_len, pkt_len);
 					goto err;
+				}
 				printf(" name=%.*s;", name_len - 1, &pkt[offset + 1]);
 				offset += name_len;
 			}
