@@ -668,13 +668,7 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 			msg.msg_control = ans_data;
 			msg.msg_controllen = sizeof(ans_data);
 			
-			//printf("cc: %d\n", cc);
 			cc = recvmsg(sock->fd, &msg, polling);
-			//if (cc == -1) {
-			//	fprintf(stderr, "Value of errno: %d\n", errno);
-			//	error(0, errno, "revcmsg");
-			//}
-			printf("cc after recvmsg: %d\n", cc);
 			polling = MSG_DONTWAIT;
 
 			if (cc < 0) {

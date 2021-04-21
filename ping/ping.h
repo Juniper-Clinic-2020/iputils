@@ -160,6 +160,7 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai, 
 int ping4_send_probe(struct ping_rts *rts, socket_st *, void *packet, unsigned packet_size);
 int ping4_receive_error_msg(struct ping_rts *, socket_st *);
 int ping4_parse_reply(struct ping_rts *, socket_st *, struct msghdr *msg, int cc, void *addr, struct timeval *);
+int probe4_parse_reply(struct ping_rts *, socket_st *, struct msghdr *msg, int cc, void *addr, struct timeval *); 
 void ping4_install_filter(struct ping_rts *rts, socket_st *);
 void probe4_install_filter(struct ping_rts *rts, socket_st *);
 

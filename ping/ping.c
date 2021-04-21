@@ -1829,13 +1829,72 @@ int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
 	// printf("type:%d\n", icp->type);
 	// printf("code:%d\n", icp->code);
 
-    if (icp->type == ICMP4_EXT_ECHO_REPLY) {
+    if (icp->type == ICMP_EXT_ECHOREPLY) {
 		uint16_t sequence = ntohs(icp->un.echo.sequence);
-		if((sequence & 0x0004) >> 2) {
-			printf("a bit set");
+		uint8_t code = icp->code;
+
+		if (code == 0) {
+			if((sequence & 0x0004) >> 2) {
+				printf("a bit set \n");
+
+				if ((sequence & 0x0002) >> 1) {
+					printf("4 bit set \n");
+				} else {
+					printf("4 bit not set \n");
+				}
+				if (sequence & 0x0001) {
+					printf("6 bit set \n");
+				} else {
+					printf("6 bit not set \n");
+				}
+
+			} else {
+				printf("a bit not set \n");
+			}
 		} else {
-			printf("a bit not set");
+			uint8_t state = (sequence & 0x00e0) >> 5;
+			switch (state)
+			{
+				case 1:
+					printf("State: Incomplete\n");
+					break;
+				case 2:
+					printf("State: Reachable\n");
+					break;
+				case 3:
+					printf("State: Stale");
+					break;
+				case 4:
+					printf("State: Delay");
+					break;
+				case 5:
+					printf("State: Probe");
+					break;
+				case 6:
+					printf("State: Failed");
+					break;
+			} 
+			switch (code)
+			{
+			case 1:
+				printf("Error: Malformed Query\n");
+				break;
+			case 2:
+				printf("Error: No Such Interface\n");
+				break;
+			case 3:
+				printf("Error: No Such Table Entry\n");
+				break;
+			case 4:
+				printf("Error: Multiple Interfaces Satisfy Query\n");
+				break;
+			
+			default:
+				printf("Unrecognized Error");
+				break;
+			}
 		}
+		
         if (!rts->broadcast_pings && !rts->multicast &&
             from->sin_addr.s_addr != rts->whereto.sin_addr.s_addr) {
                 printf("not broadcast, not multicast, and from is not whereto\n");
