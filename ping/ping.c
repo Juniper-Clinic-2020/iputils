@@ -629,7 +629,6 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 		.ai_protocol = IPPROTO_UDP,
 		.ai_flags = getaddrinfo_flags
 	};
-	printf("in ping4_run\n");
 	int hold, packlen;
 	unsigned char *packet;
 	char *target;
@@ -706,7 +705,6 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 				int errno_save;
 
 				enable_capability_raw();
-				printf("SO_BINDTODEVICE");
 				rc = setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
 						rts->device, strlen(rts->device) + 1);
 				errno_save = errno;
@@ -719,7 +717,6 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 							error(2, 0, _("unknown iface: %s"), rts->device);
 						memset(&imr, 0, sizeof(imr));
 						imr.imr_ifindex = ifr.ifr_ifindex;
-						printf("IP_MULTICAST");
 						if (setsockopt(fd, SOL_IP, IP_MULTICAST_IF,
 							       &imr, sizeof(imr)) == -1)
 							error(2, errno, "IP_MULTICAST_IF");
@@ -729,7 +726,6 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 			}
 		}
 
-		printf("IP_TOS");
 		if (rts->settos &&
 		    setsockopt(probe_fd, IPPROTO_IP, IP_TOS, (char *)&rts->settos, sizeof(int)) < 0)
 			error(0, errno, _("warning: QOS sockopts"));
@@ -743,7 +739,6 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 					error(2, 0,
 						_("Do you want to ping broadcast? Then -b. If not, check your local firewall rules"));
 				fprintf(stderr, _("WARNING: pinging broadcast address\n"));
-				printf("SO_BROADCAST");
 				if (setsockopt(probe_fd, SOL_SOCKET, SO_BROADCAST,
 					       &rts->broadcast_pings, sizeof(rts->broadcast_pings)) < 0)
 					error(2, errno, _("cannot set broadcasting"));
@@ -779,7 +774,6 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 			if (ifa && !memcmp(&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr,
 			    &dst.sin_addr, sizeof(rts->source.sin_addr))) {
 				enable_capability_raw();
-				printf("BINDTODEVICE\n");
 				setsockopt(sock->fd, SOL_SOCKET, SO_BINDTODEVICE, "", 0);
 				disable_capability_raw();
 			}
@@ -800,7 +794,6 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 		strncpy(ifr.ifr_name, rts->device, IFNAMSIZ - 1);
 
 		enable_capability_raw();
-		printf("BINDTODEVICE\n");
 		rc = setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, rts->device, strlen(rts->device) + 1);
 		errno_save = errno;
 		disable_capability_raw();
@@ -847,7 +840,6 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 	}
 
 	if (rts->pmtudisc >= 0) {
-		printf("IP_MTU_DISCOVER\n");
 		if (setsockopt(sock->fd, SOL_IP, IP_MTU_DISCOVER, &rts->pmtudisc, sizeof rts->pmtudisc) == -1)
 			error(2, errno, "IP_MTU_DISCOVER");
 	}
@@ -865,18 +857,15 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 			      (1 << ICMP_REDIRECT)	|
 			      (1 << ICMP_ECHOREPLY)
 				  );
-		printf("ICMP_FILTER");
 		if (setsockopt(sock->fd, SOL_RAW, ICMP_FILTER, &filt, sizeof filt) == -1)
 			error(0, errno, _("WARNING: setsockopt(ICMP_FILTER)"));
 	}
 
 	hold = 1;
-	printf("IP_RECVERR");
 	if (setsockopt(sock->fd, SOL_IP, IP_RECVERR, &hold, sizeof hold))
 		error(0, 0, _("WARNING: your kernel is veeery old. No problems."));
 
 	if (sock->socktype == SOCK_DGRAM) {
-		printf("IP_RECVTTL + IP_RETOPTS\n");
 		if (setsockopt(sock->fd, SOL_IP, IP_RECVTTL, &hold, sizeof hold))
 			error(0, errno, _("WARNING: setsockopt(IP_RECVTTL)"));
 		if (setsockopt(sock->fd, SOL_IP, IP_RETOPTS, &hold, sizeof hold))
@@ -891,7 +880,6 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 		rspace[1 + IPOPT_OLEN] = sizeof(rspace) - 1;
 		rspace[1 + IPOPT_OFFSET] = IPOPT_MINOFF;
 		rts->optlen = 40;
-		printf("IP_OPTIONS");
 		if (setsockopt(sock->fd, IPPROTO_IP, IP_OPTIONS, rspace, sizeof rspace) < 0)
 			error(2, errno, "record route");
 	}
@@ -909,7 +897,6 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 				*tmp_rspace = rts->route[i];
 			}
 		}
-		printf("IP_OPTIONS TIMESTAMP");
 		if (setsockopt(sock->fd, IPPROTO_IP, IP_OPTIONS, rspace, rspace[1]) < 0) {
 			rspace[3] = 2;
 			if (setsockopt(sock->fd, IPPROTO_IP, IP_OPTIONS, rspace, rspace[1]) < 0)
@@ -928,7 +915,6 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 			tmp_rspace = (uint32_t *)&rspace[4 + i * 4];
 			*tmp_rspace = rts->route[i];
 		}
-		printf("IP_OPTIONS RECORD ROUTE");
 		if (setsockopt(sock->fd, IPPROTO_IP, IP_OPTIONS, rspace, 4 + rts->nroute * 4) < 0)
 			error(2, errno, "record route");
 		rts->optlen = 40;
@@ -941,7 +927,6 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 	sock_setbufs(rts, sock, hold);
 
 	if (rts->broadcast_pings) {
-		printf("SO_BROADCAST");
 		if (setsockopt(sock->fd, SOL_SOCKET, SO_BROADCAST, &rts->broadcast_pings,
 			       sizeof rts->broadcast_pings) < 0)
 			error(2, errno, _("cannot set broadcasting"));
@@ -949,13 +934,11 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 
 	if (rts->opt_noloop) {
 		int loop = 0;
-		printf("IP_MULTICAST");
 		if (setsockopt(sock->fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof loop) == -1)
 			error(2, errno, _("cannot disable multicast loopback"));
 	}
 	if (rts->opt_ttl) {
 		int ittl = rts->ttl;
-		printf("IP_MULTICAST_TTL");
 		if (setsockopt(sock->fd, IPPROTO_IP, IP_MULTICAST_TTL, &rts->ttl, sizeof rts->ttl) == -1)
 			error(2, errno, _("cannot set multicast time-to-live"));
 		if (setsockopt(sock->fd, IPPROTO_IP, IP_TTL, &ittl, sizeof ittl) == -1)
@@ -1591,7 +1574,7 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 
     /* compute ICMP checksum here */
     icp->checksum = in_cksum((unsigned short *)icp, cc, 0);
-    printf("C-type = %d\n", iio.ctype);
+    // printf("C-type = %d\n", iio.ctype);
     // Create IIO addr info based on C-Type
     if (iio.ctype == 1){
         iio.len += strlen(rts->interface);
@@ -1653,7 +1636,6 @@ int probe4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
     // icp->checksum = in_cksum((unsigned short *)addr, iio.addrlen, ~icp->checksum);
 
     i = sendto(sock->fd, icp, cc, 0, (struct sockaddr *)&rts->whereto, sizeof(rts->whereto));
-	printf("\ni: %d\n",i);
     return (cc == i ? 0 : i);
 }
 
@@ -1836,7 +1818,7 @@ int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
     uint8_t *opts, *tmp_ttl;
     int olen;
 
-    printf("In probe4_parse_reply!\n");
+    // printf("In probe4_parse_reply!\n");
 
     /* Check the IP header */
     ip = (struct iphdr *)buf;
@@ -1875,10 +1857,16 @@ int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
     cc -= hlen;
     icp = (struct icmphdr *)(buf + hlen);
     csfailed = in_cksum((unsigned short *)icp, cc, 0);
-	printf("type:%d\n", icp->type);
-	printf("code:%d\n", icp->code);
+	// printf("type:%d\n", icp->type);
+	// printf("code:%d\n", icp->code);
 
     if (icp->type == ICMP4_EXT_ECHO_REPLY) {
+		uint16_t sequence = ntohs(icp->un.echo.sequence);
+		if((sequence & 0x0004) >> 2) {
+			printf("a bit set");
+		} else {
+			printf("a bit not set");
+		}
         if (!rts->broadcast_pings && !rts->multicast &&
             from->sin_addr.s_addr != rts->whereto.sin_addr.s_addr) {
                 printf("not broadcast, not multicast, and from is not whereto\n");

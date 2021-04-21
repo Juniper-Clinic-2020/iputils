@@ -668,11 +668,13 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 			msg.msg_iovlen = 1;
 			msg.msg_control = ans_data;
 			msg.msg_controllen = sizeof(ans_data);
-
-			printf("iovlen: %d", iov.iov_len);
-
-			printf("cc: %d\n", cc);
+			
+			//printf("cc: %d\n", cc);
 			cc = recvmsg(sock->fd, &msg, polling);
+			//if (cc == -1) {
+			//	fprintf(stderr, "Value of errno: %d\n", errno);
+			//	error(0, errno, "revcmsg");
+			//}
 			printf("cc after recvmsg: %d\n", cc);
 			polling = MSG_DONTWAIT;
 
@@ -720,7 +722,7 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 			/* See? ... someone runs another ping on this host. */
 			if (not_ours && sock->socktype == SOCK_RAW && rts->probe == 0)
 				fset->install_filter(rts, sock);
-			else if(not_ours && sock->socktype == SOCK_RAW && rts->probe == 0) 
+			else if(not_ours && sock->socktype == SOCK_RAW && rts->probe == 1) 
 				fset->install_probe_filter(rts, sock);
 
 			/* If nothing is in flight, "break" returns us to pinger. */
@@ -745,7 +747,6 @@ int gather_statistics(struct ping_rts *rts, uint8_t *icmph, int icmplen,
 	long triptime = 0;
 	uint8_t *ptr = icmph + icmplen;
 
-    printf("in gather_statistics\n");
 	++rts->nreceived;
 	if (!csfailed)
 		acknowledge(rts, seq);
@@ -839,7 +840,6 @@ restamp:
 			printf(_(" (BAD CHECKSUM!)"));
 
 		/* check the data */
-        printf("Before checking the data\n");
 		cp = ((unsigned char *)ptr) + sizeof(struct timeval);
 		dp = &rts->outpack[8 + sizeof(struct timeval)];
 		for (i = sizeof(struct timeval); i < rts->datalen; ++i, ++cp, ++dp) {
