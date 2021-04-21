@@ -53,7 +53,8 @@ void usage(void)
 		"  -c <count>         stop after <count> replies\n"
 		"  -D                 print timestamps\n"
 		"  -d                 use SO_DEBUG socket option\n"
-		"  -e				  use extended echo request\n"
+		"  -e <interface>     send extended echo request\n"
+		"		      requires -4 option, incompatible with all other options\n"
 		"  -f                 flood ping\n"
 		"  -h                 print help and exit\n"
 		"  -I <interface>     either interface name or address\n"
@@ -351,9 +352,7 @@ int pinger(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock)
 	}
 
 resend:
-	if(rts->probe == 0) i = fset->send_probe(rts, sock, rts->outpack, sizeof(rts->outpack));
-	else i = fset->send_ext_echo(rts, sock, rts->outpack, sizeof(rts->outpack));
-	printf("after send i = %d\n", i);
+	i = fset->send_probe(rts, sock, rts->outpack, sizeof(rts->outpack));
 	if (i == 0) {
 		oom_count = 0;
 		advance_ntransmitted(rts);
@@ -715,8 +714,7 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 						gettimeofday(&recv_time, NULL);
 					recv_timep = &recv_time;
 				}
-				if(rts->probe == 0) not_ours = fset->parse_reply(rts, sock, &msg, cc, addrbuf, recv_timep);
-                else not_ours = fset->parse_ext_reply(rts, sock, &msg, cc, addrbuf, recv_timep);
+			not_ours = fset->parse_reply(rts, sock, &msg, cc, addrbuf, recv_timep);
 			}
 
 			/* See? ... someone runs another ping on this host. */
