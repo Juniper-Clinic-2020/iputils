@@ -956,7 +956,6 @@ int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai,
 
 	setup(rts, sock);
 
-	printf("packlen: %d\n", packlen);
 	hold = main_loop(rts, &ping4_func_set, sock, packet, packlen);
 	free(packet);
 	return hold;
@@ -1687,7 +1686,7 @@ int ping4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
 		if (gather_statistics(rts, (uint8_t *)icp, sizeof(*icp), cc,
 				      ntohs(icp->un.echo.sequence),
 				      reply_ttl, 0, tv, pr_addr(rts, from, sizeof *from),
-				      pr_echo_reply, rts->multicast)) {
+				      pr_echo_reply, rts->multicast, 0)) {
 			fflush(stdout);
 			return 0;
 		}
@@ -1787,8 +1786,6 @@ int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
     uint8_t *opts, *tmp_ttl;
     int olen;
 
-    // printf("In probe4_parse_reply!\n");
-
     /* Check the IP header */
     ip = (struct iphdr *)buf;
     if (sock->socktype == SOCK_RAW) {
@@ -1799,8 +1796,6 @@ int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
                     pr_addr(rts,from, sizeof *from));
             return 1;
         }
-        reply_ttl = ip->ttl;
-        opts = buf + sizeof(struct iphdr);
         olen = hlen - sizeof(struct iphdr);
     } else {
         hlen = 0;
@@ -1832,27 +1827,34 @@ int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
     if (icp->type == ICMP_EXT_ECHOREPLY) {
 		uint16_t sequence = ntohs(icp->un.echo.sequence);
 		uint8_t code = icp->code;
-
-		if (code == 0) {
-			if((sequence & 0x0004) >> 2) {
-				printf("a bit set \n");
-
-				if ((sequence & 0x0002) >> 1) {
-					printf("4 bit set \n");
-				} else {
-					printf("4 bit not set \n");
-				}
-				if (sequence & 0x0001) {
-					printf("6 bit set \n");
-				} else {
-					printf("6 bit not set \n");
-				}
-
-			} else {
-				printf("a bit not set \n");
+		uint8_t state = (sequence & 0x00e0) >> 5;
+		uint16_t active_bit = (sequence & 0x0004) >> 2;
+		uint16_t four_bit = (sequence & 0x0002) >> 1;
+		uint16_t six_bit = sequence & 0x0001;
+		if (code != 0) {
+			switch (code)
+			{
+			case 1:
+				printf("Error: Malformed Query\n");
+				break;
+			case 2:
+				printf("Error: No Such Interface\n");
+				break;
+			case 3:
+				printf("Error: No Such Table Entry\n");
+				break;
+			case 4:
+				printf("Error: Multiple Interfaces Satisfy Query\n");
+				break;
+			
+			default:
+				printf("Unrecognized Error\n");
+				break;
+			}
+			if (state) {
+				printf("Error: State must be 0 when code is 0\n");
 			}
 		} else {
-			uint8_t state = (sequence & 0x00e0) >> 5;
 			switch (state)
 			{
 				case 1:
@@ -1873,25 +1875,17 @@ int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
 				case 6:
 					printf("State: Failed");
 					break;
-			} 
-			switch (code)
-			{
-			case 1:
-				printf("Error: Malformed Query\n");
-				break;
-			case 2:
-				printf("Error: No Such Interface\n");
-				break;
-			case 3:
-				printf("Error: No Such Table Entry\n");
-				break;
-			case 4:
-				printf("Error: Multiple Interfaces Satisfy Query\n");
-				break;
-			
-			default:
-				printf("Unrecognized Error");
-				break;
+			}
+
+			if (active_bit == 0) {
+				printf("Error: A-bit must be set\n");
+
+				if (four_bit) {
+					printf("Error: 4-bit set when A-bit is 0\n");
+				}
+				if (six_bit) {
+					printf("Error: 6-bit set when A-bit is 0\n");
+				}
 			}
 		}
 		
@@ -1911,7 +1905,7 @@ int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
         if (gather_statistics(rts, (uint8_t *)icp, sizeof(*icp), cc,
                       ntohs(icp->un.echo.sequence),
                       reply_ttl, 0, tv, pr_addr(rts, from, sizeof *from),
-                      pr_echo_reply, rts->multicast)) {
+                      pr_echo_reply, rts->multicast, 1)) {
             printf("Gather_statistics = 1\n");
             fflush(stdout);
             return 0;

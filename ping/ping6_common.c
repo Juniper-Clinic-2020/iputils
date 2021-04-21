@@ -832,7 +832,7 @@ int ping6_parse_reply(struct ping_rts *rts, socket_st *sock,
 				      ntohs(icmph->icmp6_seq),
 				      hops, 0, tv, pr_addr(rts, from, sizeof *from),
 				      pr_echo_reply,
-				      rts->multicast)) {
+				      rts->multicast, 0)) {
 			fflush(stdout);
 			return 0;
 		}
@@ -845,7 +845,7 @@ int ping6_parse_reply(struct ping_rts *rts, socket_st *sock,
 				      seq,
 				      hops, 0, tv, pr_addr(rts, from, sizeof *from),
 				      pr_niquery_reply,
-				      rts->multicast))
+				      rts->multicast, 0))
 			return 0;
 	} else {
 		int nexthdr;

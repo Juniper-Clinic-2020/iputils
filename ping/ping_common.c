@@ -733,7 +733,7 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 int gather_statistics(struct ping_rts *rts, uint8_t *icmph, int icmplen,
 		      int cc, uint16_t seq, int hops,
 		      int csfailed, struct timeval *tv, char *from,
-		      void (*pr_reply)(uint8_t *icmph, int cc), int multicast)
+		      void (*pr_reply)(uint8_t *icmph, int cc), int multicast, int is_probe)
 {
 	int dupflag = 0;
 	long triptime = 0;
