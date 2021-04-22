@@ -1527,7 +1527,7 @@ send_msg:
 	if (rts->timing && !rts->opt_latency) {
 		struct timeval tmp_tv;
 		gettimeofday(&tmp_tv, NULL);
-		printf("timeval %x\n", tmp_tv);
+		// printf("timeval %x\n", tmp_tv);
 		if (rts->probe == 0)
 			memcpy(icp + 1, &tmp_tv, sizeof(tmp_tv));
 		else if (rts->probe == 1)
@@ -1686,7 +1686,7 @@ int ping4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
 		if (gather_statistics(rts, (uint8_t *)icp, sizeof(*icp), cc,
 				      ntohs(icp->un.echo.sequence),
 				      reply_ttl, 0, tv, pr_addr(rts, from, sizeof *from),
-				      pr_echo_reply, rts->multicast, 0)) {
+				      pr_echo_reply, rts->multicast)) {
 			fflush(stdout);
 			return 0;
 		}
@@ -1905,7 +1905,7 @@ int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
         if (gather_statistics(rts, (uint8_t *)icp, sizeof(*icp), cc,
                       ntohs(icp->un.echo.sequence),
                       reply_ttl, 0, tv, pr_addr(rts, from, sizeof *from),
-                      pr_echo_reply, rts->multicast, 1)) {
+                      pr_echo_reply, rts->multicast)) {
             printf("Gather_statistics = 1\n");
             fflush(stdout);
             return 0;
