@@ -1912,7 +1912,6 @@ int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
         }
     } else {
         /* We fall here when a redirect or source quench arrived. */
-        printf("Else\n");
 
         // TODO: Modify following case statement to handle icmp extended echo (?)
         switch (icp->type) {
