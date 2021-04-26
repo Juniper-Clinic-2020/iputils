@@ -253,6 +253,7 @@
 #endif
 
 #include "iputils_common.h"
+#include "ipv6.h"
 
 #ifdef USE_IDN
 # define ADDRINFO_IDN_FLAGS	AI_IDN
@@ -531,7 +532,7 @@ static int packet_ok(struct run_state *ctl, int cc, struct sockaddr_in6 *from,
 		up = (struct udphdr *)(hip + 1);
 		nexthdr = hip->ip6_nxt;
 
-		if (nexthdr == 44) {
+		if (nexthdr == NEXTHDR_FRAGMENT) {
 			nexthdr = *(unsigned char *)up;
 			up++;
 		}
@@ -609,6 +610,7 @@ static __attribute__((noreturn)) void usage(void)
 		"  -r            use SO_DONTROUTE socket option\n"
 		"  -s <address>  use source <address>\n"
 		"  -v            verbose output\n"
+		"  -V            print version and exit\n"
 		"  -w <timeout>  time to wait for response\n"
 		"\nFor more details see traceroute6(8).\n"));
 	exit(1);

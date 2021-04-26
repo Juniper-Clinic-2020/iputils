@@ -65,7 +65,7 @@
 
 #define	MAXWAIT		10		/* max seconds to wait for response */
 #define MININTERVAL	10		/* Minimal interpacket gap */
-#define MINUSERINTERVAL	200		/* Minimal allowed interval for non-root */
+#define MINUSERINTERVAL	2		/* Minimal allowed interval for non-root */
 
 /* Definitions for Extended Echo (PROBE) messages */
 #ifndef ICMP_EXT_ECHO

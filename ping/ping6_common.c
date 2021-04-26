@@ -61,6 +61,7 @@
 
 #include "iputils_common.h"
 #include "iputils_ni.h"
+#include "ipv6.h"
 #include "ping.h"
 
 #ifndef IPV6_FLOWLABEL_MGR
@@ -487,8 +488,11 @@ int ping6_receive_error_msg(struct ping_rts *rts, socket_st *sock)
 	msg.msg_controllen = sizeof(cbuf);
 
 	res = recvmsg(sock->fd, &msg, MSG_ERRQUEUE | MSG_DONTWAIT);
-	if (res < 0)
+	if (res < 0) {
+		if (errno == EAGAIN || errno == EINTR)
+			local_errors++;
 		goto out;
+	}
 
 	e = NULL;
 	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
@@ -867,7 +871,7 @@ int ping6_parse_reply(struct ping_rts *rts, socket_st *sock,
 
 		nexthdr = iph1->ip6_nxt;
 
-		if (nexthdr == 44) {
+		if (nexthdr == NEXTHDR_FRAGMENT) {
 			nexthdr = *(uint8_t *)icmph1;
 			icmph1++;
 		}
