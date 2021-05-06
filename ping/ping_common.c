@@ -712,10 +712,8 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 			}
 
 			/* See? ... someone runs another ping on this host. */
-			if (not_ours && sock->socktype == SOCK_RAW && rts->probe == 0)
+			if (not_ours && sock->socktype == SOCK_RAW)
 				fset->install_filter(rts, sock);
-			else if(not_ours && sock->socktype == SOCK_RAW && rts->probe == 1) 
-				fset->install_probe_filter(rts, sock);
 
 			/* If nothing is in flight, "break" returns us to pinger. */
 			if (in_flight(rts) == 0)

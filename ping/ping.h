@@ -69,40 +69,40 @@
 
 /* Definitions for Extended Echo (PROBE) messages */
 #ifndef ICMP_EXT_ECHO
-#define ICMP_EXT_ECHO		42
+#define ICMP_EXT_ECHO			42
 #endif
 #ifndef ICMP_EXT_ECHOREPLY
-#define ICMP_EXT_ECHOREPLY	43
+#define ICMP_EXT_ECHOREPLY		43
 #endif
-#ifndef ICMP_EXT_MAL_QUERY
-#define ICMP_EXT_MAL_QUERY	1
+#ifndef ICMP_EXT_CODE_MAL_QUERY
+#define ICMP_EXT_CODE_MAL_QUERY		1
 #endif
-#ifndef ICMP_EXT_NO_IF
-#define ICMP_EXT_NO_IF		2
+#ifndef ICMP_EXT_CODE_NO_IF
+#define ICMP_EXT_CODE_NO_IF		2
 #endif
-#ifndef ICMP_EXT_NO_TABLE_ENT
-#define	ICMP_EXT_NO_TABLE_ENT	3
+#ifndef ICMP_EXT_CODE_NO_TABLE_ENT
+#define	ICMP_EXT_CODE_NO_TABLE_ENT	3
 #endif
-#ifndef ICMP_EXT_MULT_IFS
-#define ICMP_EXT_MULT_IFS	4
+#ifndef ICMP_EXT_CODE_MULT_IFS
+#define ICMP_EXT_CODE_MULT_IFS		4
 #endif
-#ifndef EXT_ECHOREPLY_ACTIVE
-#define EXT_ECHOREPLY_ACTIVE	(1 << 2)
+#ifndef ICMP_EXT_ECHOREPLY_ACTIVE
+#define ICMP_EXT_ECHOREPLY_ACTIVE	(1 << 2)
 #endif
-#ifndef EXT_ECHOREPLY_IPV4
-#define EXT_ECHOREPLY_IPV4	(1 << 1)
+#ifndef ICMP_EXT_ECHOREPLY_IPV4
+#define ICMP_EXT_ECHOREPLY_IPV4		(1 << 1)
 #endif
-#ifndef EXT_ECHOREPLY_IPV6
-#define EXT_ECHOREPLY_IPV6	1
+#ifndef ICMP_EXT_ECHOREPLY_IPV6
+#define ICMP_EXT_ECHOREPLY_IPV6		1
 #endif
-#ifndef EXT_ECHO_CTYPE_NAME
-#define EXT_ECHO_CTYPE_NAME	1
+#ifndef ICMP_EXT_ECHO_CTYPE_NAME
+#define ICMP_EXT_ECHO_CTYPE_NAME	1
 #endif
-#ifndef EXT_ECHO_CTYPE_INDEX
-#define EXT_ECHO_CTYPE_INDEX	2
+#ifndef ICMP_EXT_ECHO_CTYPE_INDEX
+#define ICMP_EXT_ECHO_CTYPE_INDEX	2
 #endif
-#ifndef EXT_ECHO_CTYPE_ADDR
-#define EXT_ECHO_CTYPE_ADDR	3
+#ifndef ICMP_EXT_ECHO_CTYPE_ADDR
+#define ICMP_EXT_ECHO_CTYPE_ADDR	3
 #endif
 #ifndef ICMP_AFI_IP
 #define ICMP_AFI_IP		1
@@ -162,7 +162,6 @@ int ping4_receive_error_msg(struct ping_rts *, socket_st *);
 int ping4_parse_reply(struct ping_rts *, socket_st *, struct msghdr *msg, int cc, void *addr, struct timeval *);
 int probe4_parse_reply(struct ping_rts *, socket_st *, struct msghdr *msg, int cc, void *addr, struct timeval *); 
 void ping4_install_filter(struct ping_rts *rts, socket_st *);
-void probe4_install_filter(struct ping_rts *rts, socket_st *);
 
 typedef struct ping_func_set_st {
 	int (*send_probe)(struct ping_rts *rts, socket_st *, void *packet, unsigned packet_size);
