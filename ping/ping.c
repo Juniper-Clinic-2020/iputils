@@ -85,7 +85,6 @@ ping_func_set_st ping4_func_set = {
 	.receive_error_msg = ping4_receive_error_msg,
 	.parse_reply = ping4_parse_reply,
 	.install_filter = ping4_install_filter,
-	.install_probe_filter = probe4_install_filter,
 };
 
 #define	MAXIPLEN	60
@@ -1468,18 +1467,19 @@ int check_ifname(const char *name)
 }
 
 int get_c_type(const char *interface) {
-	void *ptr;
+	struct in_addr inaddr;
+	struct in6_addr in6addr;
 
-	if(inet_pton(AF_INET, interface, ptr) == 1 || inet_pton(AF_INET6, interface, ptr) == 1)
-		return EXT_ECHO_CTYPE_ADDR;
+	if(inet_pton(AF_INET, interface, &inaddr) == 1 || inet_pton(AF_INET6, interface, &in6addr) == 1)
+		return ICMP_EXT_ECHO_CTYPE_ADDR;
 	if(isalpha(interface[0]) && check_ifname(interface) == 0)
-		return EXT_ECHO_CTYPE_NAME;
+		return ICMP_EXT_ECHO_CTYPE_NAME;
 	while (*interface) {
 		if (isalpha(*interface) || isspace(*interface))
 			return -1;
 		++interface;
 	}
-	return EXT_ECHO_CTYPE_INDEX;
+	return ICMP_EXT_ECHO_CTYPE_INDEX;
 }
 
 /*
@@ -1530,7 +1530,6 @@ send_msg:
 	if (rts->timing && !rts->opt_latency) {
 		struct timeval tmp_tv;
 		gettimeofday(&tmp_tv, NULL);
-		// printf("timeval %x\n", tmp_tv);
 		if (rts->probe == 0)
 			memcpy(icp + 1, &tmp_tv, sizeof(tmp_tv));
 		else if (rts->probe == 1)
@@ -1561,13 +1560,13 @@ build_probe:
 
     	// Create IIO addr info based on C-Type
 	switch (iio.ctype) {
-	case EXT_ECHO_CTYPE_NAME:
+	case ICMP_EXT_ECHO_CTYPE_NAME:
 		iio.len += strlen(rts->interface);
     	    	// pad to 32-bit boundary
     	    	memset(iiobase + 1 + ((strlen(rts->interface)-1)/4), 0, sizeof(uint32_t));
     	    	memcpy(iiobase + 1, rts->interface, strlen(rts->interface));
 		break;
-	case EXT_ECHO_CTYPE_ADDR:
+	case ICMP_EXT_ECHO_CTYPE_ADDR:
 		iio.len += sizeof(struct in_addr);
 		// if we're sending an ipv4 address
     	    	if(strchr(rts->interface, '.')) {
@@ -1587,7 +1586,7 @@ build_probe:
     	    		memcpy(iiobase + 1, &iio_ip_hdr, sizeof(iio_ip_hdr));
     	    	}
 		break;
-    	case EXT_ECHO_CTYPE_INDEX:
+    	case ICMP_EXT_ECHO_CTYPE_INDEX:
 		iio.len += sizeof(uint32_t);
     	    	// Using iio_ip_hdr as a temp variable to store ifIndex
     	    	iio_ip_hdr = htonl(atoi(rts->interface));
@@ -2059,36 +2058,3 @@ void ping4_install_filter(struct ping_rts *rts, socket_st *sock)
 	if (setsockopt(sock->fd, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
 		error(0, errno, _("WARNING: failed to install socket filter"));
 }
-
-
-void probe4_install_filter(struct ping_rts *rts, socket_st *sock)
-{
-	printf("probe filter");
-	// return;
-	// static int once;
-	// static struct sock_filter insns[] = {
-	// 	BPF_STMT(BPF_LDX | BPF_B   | BPF_MSH, 0),	/* Skip IP header due BSD, see ping6. */
-	// 	BPF_STMT(BPF_LD  | BPF_H   | BPF_IND, 4),	/* Load icmp echo ident */
-	// 	BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0xAAAA, 0, 1), /* Ours? */
-	// 	BPF_STMT(BPF_RET | BPF_K, ~0U),			/* Yes, it passes. */
-	// 	BPF_STMT(BPF_LD  | BPF_B   | BPF_IND, 0),	/* Load icmp type */
-	// 	BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, ICMP_ECHOREPLY, 1, 0), /* Echo? */
-	// 	BPF_STMT(BPF_RET | BPF_K, 0xFFFFFFF),		/* No. It passes. */
-	// 	BPF_STMT(BPF_RET | BPF_K, 0)			/* Echo with wrong ident. Reject. */
-	// };
-	// static struct sock_fprog filter = {
-	// 	sizeof insns / sizeof(insns[0]),
-	// 	insns
-	// };
-
-	// if (once)
-	// 	return;
-	// once = 1;
-
-	// /* Patch bpflet for current identifier. */
-	// insns[2] = (struct sock_filter)BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, htons(rts->ident), 0, 1);
-
-	// if (setsockopt(sock->fd, SOL_SOCKET, SO_ATTACH_FILTER, &filter, sizeof(filter)))
-	// 	error(0, errno, _("WARNING: failed to install socket filter"));
-}
-
