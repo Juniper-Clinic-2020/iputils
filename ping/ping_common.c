@@ -252,8 +252,6 @@ int __schedule_exit(int next)
 	static unsigned long waittime;
 	struct itimerval it;
 
-	printf("\nidkmak\n");
-
 	if (waittime)
 		return next;
 
