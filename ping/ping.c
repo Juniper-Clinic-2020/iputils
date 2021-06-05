@@ -1472,8 +1472,14 @@ int get_c_type(const char *interface) {
 
 	if(inet_pton(AF_INET, interface, &inaddr) == 1 || inet_pton(AF_INET6, interface, &in6addr) == 1)
 		return ICMP_EXT_ECHO_CTYPE_ADDR;
-	if(isalpha(interface[0]) && check_ifname(interface) == 0)
-		return ICMP_EXT_ECHO_CTYPE_NAME;
+	if(isalpha(interface[0])) {
+		if (check_ifname(interface) == 0)
+			return ICMP_EXT_ECHO_CTYPE_NAME;
+		else {
+			printf("Error: Invalid Interface Name\n");
+			return -1;
+		}
+	}
 	while (*interface) {
 		if (isalpha(*interface) || isspace(*interface))
 			return -1;
@@ -1554,7 +1560,8 @@ build_probe:
     	iio.ctype = get_c_type(rts->interface);
 	/* 3 is highest valid ctype */
 	if (iio.ctype > 3)
-		return -1;
+		/* MUST NOT */
+		return 1;
 
 	rcvd_clear(rts, rts->ntransmitted + 1);
 
@@ -1635,9 +1642,8 @@ int ping4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
 	int reply_ttl;
 	uint8_t *opts, *tmp_ttl;
 	int olen;
-
-	if (rts->probe == 1)
-		return probe4_parse_reply(rts, sock, msg, cc, addr, tv);
+	uint16_t sequence;
+	uint8_t state;
 
 	/* Check the IP header */
 	ip = (struct iphdr *)buf;
@@ -1685,6 +1691,73 @@ int ping4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
 			return 1;			/* 'Twas not our ECHO */
 		if (!contains_pattern_in_payload(rts, (uint8_t *)(icp + 1)))
 			return 1;			/* 'Twas really not our ECHO */
+		if (gather_statistics(rts, (uint8_t *)icp, sizeof(*icp), cc,
+				      ntohs(icp->un.echo.sequence),
+				      reply_ttl, 0, tv, pr_addr(rts, from, sizeof *from),
+				      pr_echo_reply, rts->multicast)) {
+			fflush(stdout);
+			return 0;
+		}
+	} else if (icp->type == ICMP_EXT_ECHOREPLY) {
+		if (!rts->broadcast_pings && !rts->multicast &&
+		    from->sin_addr.s_addr != rts->whereto.sin_addr.s_addr)
+			return 1;
+		if (!is_ours(rts, sock, icp->un.echo.id))
+			return 1;			/* 'Twas not our ECHO */
+		if (!contains_pattern_in_payload(rts, (uint8_t *)(icp + 1)))
+			return 1;			/* 'Twas really not our ECHO */
+
+		sequence = ntohs(icp->un.echo.sequence);
+		state = icp->un.echo.sequence & 0xe0;
+		printf("Interface: %s\n", rts->interface);
+		switch (icp->code) {
+			case 1:
+				printf("Error: Malformed Query\n");
+				break;
+			case 2:
+				printf("Error: No Such Interface\n");
+				break;
+			case 3:
+				printf("Error: No Such Table Entry\n");
+				break;
+			case 4:
+				printf("Error: Multiple Interfaces Satisfy Query\n");
+				break;
+			default:
+				break;
+		}
+		switch (state) {
+			case 1:
+				printf("State: Incomplete\n");
+				break;
+			case 2:
+				printf("State: Reachable\n");
+				break;
+			case 3:
+				printf("State: Stale\n");
+				break;
+			case 4:
+				printf("State: Delay\n");
+				break;
+			case 5:
+				printf("State: Probe\n");
+				break;
+			case 6:
+				printf("State: Failed\n");
+				break;
+			default:
+				break;
+		}
+		if (icp->code == 0) {
+			if ((sequence & ICMP_EXT_ECHOREPLY_ACTIVE) != 0) {
+				printf("Status: ACTIVE");
+				if (sequence & ICMP_EXT_ECHOREPLY_IPV4)
+					printf(" IPV4");
+				if (sequence & ICMP_EXT_ECHOREPLY_IPV6)
+					printf(" IPV6");
+			printf("\n");
+			}
+		}
 		if (gather_statistics(rts, (uint8_t *)icp, sizeof(*icp), cc,
 				      ntohs(icp->un.echo.sequence),
 				      reply_ttl, 0, tv, pr_addr(rts, from, sizeof *from),
@@ -1771,227 +1844,6 @@ int ping4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
 		fflush(stdout);
 	}
 	return 0;
-}
-
-int probe4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
-              struct msghdr *msg, int cc, void *addr,
-              struct timeval *tv)
-{
-	struct sockaddr_in *from = addr;
-    uint8_t *buf = msg->msg_iov->iov_base;
-    struct icmphdr *icp;
-    struct iphdr *ip;
-    int hlen;
-    int csfailed;
-    struct cmsghdr *cmsgh;
-    int reply_ttl;
-    uint8_t *opts, *tmp_ttl;
-    int olen;
-
-    /* Check the IP header */
-    ip = (struct iphdr *)buf;
-    if (sock->socktype == SOCK_RAW) {
-        hlen = ip->ihl * 4;
-        if (cc < hlen + 8 || ip->ihl < 5) {
-            if (rts->opt_verbose)
-                error(0, 0, _("packet too short (%d bytes) from %s"), cc,
-                    pr_addr(rts,from, sizeof *from));
-            return 1;
-        }
-        olen = hlen - sizeof(struct iphdr);
-    } else {
-        hlen = 0;
-        reply_ttl = 0;
-        opts = buf;
-        olen = 0;
-        for (cmsgh = CMSG_FIRSTHDR(msg); cmsgh; cmsgh = CMSG_NXTHDR(msg, cmsgh)) {
-            if (cmsgh->cmsg_level != SOL_IP)
-                continue;
-            if (cmsgh->cmsg_type == IP_TTL) {
-                if (cmsgh->cmsg_len < sizeof(int))
-                    continue;
-                tmp_ttl = (uint8_t *)CMSG_DATA(cmsgh);
-                reply_ttl = (int)*tmp_ttl;
-            } else if (cmsgh->cmsg_type == IP_RETOPTS) {
-                opts = (uint8_t *)CMSG_DATA(cmsgh);
-                olen = cmsgh->cmsg_len;
-            }
-        }
-    }
-
-    /* Now the ICMP part */
-    cc -= hlen;
-    icp = (struct icmphdr *)(buf + hlen);
-    csfailed = in_cksum((unsigned short *)icp, cc, 0);
-	// printf("type:%d\n", icp->type);
-	// printf("code:%d\n", icp->code);
-
-    if (icp->type == ICMP_EXT_ECHOREPLY) {
-		uint16_t sequence = ntohs(icp->un.echo.sequence);
-		uint8_t code = icp->code;
-		uint8_t state = (sequence & 0x00e0) >> 5;
-		uint16_t active_bit = (sequence & 0x0004) >> 2;
-		uint16_t four_bit = (sequence & 0x0002) >> 1;
-		uint16_t six_bit = sequence & 0x0001;
-		if (code != 0) {
-			switch (code)
-			{
-			case 1:
-				printf("Error: Malformed Query\n");
-				break;
-			case 2:
-				printf("Error: No Such Interface\n");
-				break;
-			case 3:
-				printf("Error: No Such Table Entry\n");
-				break;
-			case 4:
-				printf("Error: Multiple Interfaces Satisfy Query\n");
-				break;
-			
-			default:
-				printf("Unrecognized Error\n");
-				break;
-			}
-			if (state) {
-				printf("Error: State must be 0 when code is 0\n");
-			}
-		} else {
-			switch (state)
-			{
-				case 1:
-					printf("State: Incomplete\n");
-					break;
-				case 2:
-					printf("State: Reachable\n");
-					break;
-				case 3:
-					printf("State: Stale");
-					break;
-				case 4:
-					printf("State: Delay");
-					break;
-				case 5:
-					printf("State: Probe");
-					break;
-				case 6:
-					printf("State: Failed");
-					break;
-			}
-
-			if (active_bit == 0) {
-				printf("Error: A-bit must be set\n");
-
-				if (four_bit) {
-					printf("Error: 4-bit set when A-bit is 0\n");
-				}
-				if (six_bit) {
-					printf("Error: 6-bit set when A-bit is 0\n");
-				}
-			}
-		}
-		
-        if (!rts->broadcast_pings && !rts->multicast &&
-            from->sin_addr.s_addr != rts->whereto.sin_addr.s_addr) {
-                printf("not broadcast, not multicast, and from is not whereto\n");
-                return 1;
-            }
-        if (!is_ours(rts, sock, icp->un.echo.id)) {
-                printf("'Twas not our ECHO\b");
-                return 1;            /* 'Twas not our ECHO */
-        }
-        if (!contains_pattern_in_payload(rts, (uint8_t *)(icp + 1))) {
-                printf("'Twas really not our ECHO\n");
-                return 1;            /* 'Twas really not our ECHO */
-        }
-        if (gather_statistics(rts, (uint8_t *)icp, sizeof(*icp), cc,
-                      ntohs(icp->un.echo.sequence),
-                      reply_ttl, 0, tv, pr_addr(rts, from, sizeof *from),
-                      pr_echo_reply, rts->multicast)) {
-            printf("Gather_statistics = 1\n");
-            fflush(stdout);
-            return 0;
-        }
-    } else {
-        /* We fall here when a redirect or source quench arrived. */
-
-        // TODO: Modify following case statement to handle icmp extended echo (?)
-        switch (icp->type) {
-        case ICMP_ECHO:
-            /* MUST NOT */
-            return 1;
-        case ICMP_SOURCE_QUENCH:
-        case ICMP_REDIRECT:
-        case ICMP_DEST_UNREACH:
-        case ICMP_TIME_EXCEEDED:
-        case ICMP_PARAMETERPROB:
-            {
-                struct iphdr *iph = (struct iphdr *)(&icp[1]);
-                struct icmphdr *icp1 = (struct icmphdr *)
-                        ((unsigned char *)iph + iph->ihl * 4);
-                int error_pkt;
-                if (cc < (int)(8 + sizeof(struct iphdr) + 8) ||
-                    cc < 8 + iph->ihl * 4 + 8)
-                    return 1;
-                if (icp1->type != ICMP_ECHO ||
-                    iph->daddr != rts->whereto.sin_addr.s_addr ||
-                    !is_ours(rts, sock, icp1->un.echo.id))
-                    return 1;
-                error_pkt = (icp->type != ICMP_REDIRECT &&
-                         icp->type != ICMP_SOURCE_QUENCH);
-                if (error_pkt) {
-                    acknowledge(rts, ntohs(icp1->un.echo.sequence));
-                    return 0;
-                }
-                if (rts->opt_quiet || rts->opt_flood)
-                    return 1;
-                print_timestamp(rts);
-                printf(_("From %s: icmp_seq=%u "), pr_addr(rts, from, sizeof *from),
-                       ntohs(icp1->un.echo.sequence));
-                if (csfailed)
-                    printf(_("(BAD CHECKSUM)"));
-                pr_icmph(rts, icp->type, icp->code, ntohl(icp->un.gateway), icp);
-                return 1;
-            }
-        default:
-            /* MUST NOT */
-            break;
-        }
-        if (rts->opt_flood && !(rts->opt_verbose || rts->opt_quiet)) {
-            if (!csfailed)
-                write_stdout("!E", 2);
-            else
-                write_stdout("!EC", 3);
-            return 0;
-        }
-        if (!rts->opt_verbose || rts->uid)
-            return 0;
-        if (rts->opt_ptimeofday) {
-            struct timeval recv_time;
-            gettimeofday(&recv_time, NULL);
-            printf("%lu.%06lu ", (unsigned long)recv_time.tv_sec, (unsigned long)recv_time.tv_usec);
-        }
-        printf(_("From %s: "), pr_addr(rts, from, sizeof *from));
-        if (csfailed) {
-            printf(_("(BAD CHECKSUM)\n"));
-            return 0;
-        }
-        pr_icmph(rts, icp->type, icp->code, ntohl(icp->un.gateway), icp);
-        return 0;
-    }
-
-    if (rts->opt_audible) {
-        putchar('\a');
-        if (rts->opt_flood)
-            fflush(stdout);
-    }
-    if (!rts->opt_flood) {
-        pr_options(rts, opts, olen + sizeof(struct iphdr));
-
-        putchar('\n');
-        fflush(stdout);
-    }
-    return 0;
 }
 
 /*
