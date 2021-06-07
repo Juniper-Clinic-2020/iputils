@@ -142,6 +142,9 @@ typedef uint32_t	bitmap_t;
 # error Please MAX_DUP_CHK and/or BITMAP_SHIFT
 #endif
 
+#define    READ_VERSION(x)      (ntohs(x) >> 12)
+#define    WRITE_VERSION(x, y)  (htons(x = (x & 0x0FFF) | (y << 12)))
+
 struct rcvd_table {
 	bitmap_t bitmap[MAX_DUP_CHK / (sizeof(bitmap_t) * 8)];
 };
@@ -153,7 +156,17 @@ typedef struct socket_st {
 
 struct ping_rts;
 
-int check_ifname(const char *name);
+struct exthdr {
+	uint16_t	v_rsvd;
+	uint16_t	checksum;
+};
+
+struct iiohdr {
+	uint16_t	len;
+	uint8_t		class;
+	uint8_t		ctype;
+};
+
 int get_c_type(const char *interface);
 
 int ping4_run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai, socket_st *sock);

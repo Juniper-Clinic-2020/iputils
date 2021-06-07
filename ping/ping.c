@@ -68,18 +68,6 @@ struct icmp_filter {
 };
 #endif
 
-
-struct exthdr {
-    uint16_t    v_rsvd;
-    uint16_t    checksum;
-};
-
-struct iiohdr {
-    uint16_t    len;
-    uint8_t     class;
-    uint8_t     ctype;
-};
-
 ping_func_set_st ping4_func_set = {
 	.send_probe = ping4_send_probe,
 	.receive_error_msg = ping4_receive_error_msg,
@@ -91,9 +79,6 @@ ping_func_set_st ping4_func_set = {
 #define	MAXICMPLEN	76
 #define	NROUTES		9		/* number of record route slots */
 #define TOS_MAX		255		/* 8-bit TOS field */
-
-#define    READ_VERSION(x)      (ntohs(x) >> 12)
-#define    WRITE_VERSION(x, y)  (htons(x = (x & 0x0FFF) | (y << 12)))
 
 static void create_socket(struct ping_rts *rts, socket_st *sock, int family,
 			  int socktype, int protocol, int requisite)
@@ -1448,46 +1433,6 @@ in_cksum(const unsigned short *addr, int len, unsigned short csum)
 	return (answer);
 }
 
-/* Helper functions for constructing RFC 8335 PROBE messages */
-/* Copied from iproute2's if name check */
-int check_ifname(const char *name)
-{
-	/* These checks mimic kernel checks in dev_valid_name */
-	if (*name == '\0')
-		return -1;
-	if (strlen(name) >= IFNAMSIZ)
-		return -1;
-
-	while (*name) {
-		if (*name == '/' || isspace(*name))
-			return -1;
-		++name;
-	}
-	return 0;
-}
-
-int get_c_type(const char *interface) {
-	struct in_addr inaddr;
-	struct in6_addr in6addr;
-
-	if(inet_pton(AF_INET, interface, &inaddr) == 1 || inet_pton(AF_INET6, interface, &in6addr) == 1)
-		return ICMP_EXT_ECHO_CTYPE_ADDR;
-	if(isalpha(interface[0])) {
-		if (check_ifname(interface) == 0)
-			return ICMP_EXT_ECHO_CTYPE_NAME;
-		else {
-			printf("Error: Invalid Interface Name\n");
-			return -1;
-		}
-	}
-	while (*interface) {
-		if (isalpha(*interface) || isspace(*interface))
-			return -1;
-		++interface;
-	}
-	return ICMP_EXT_ECHO_CTYPE_INDEX;
-}
-
 /*
  * pinger --
  * 	Compose and transmit an ICMP ECHO REQUEST packet.  The IP packet
@@ -1591,7 +1536,7 @@ build_probe:
     	    		iio_ip_hdr = htonl(iio_ip_hdr);
     	    		inet_pton(AF_INET6, rts->interface, (iiobase+2));
     	    		memcpy(iiobase + 1, &iio_ip_hdr, sizeof(iio_ip_hdr));
-    	    	}
+		}
 		break;
     	case ICMP_EXT_ECHO_CTYPE_INDEX:
 		iio.len += sizeof(uint32_t);

@@ -295,6 +295,49 @@ void print_timestamp(struct ping_rts *rts)
 	}
 }
 
+/* Helper functions for constructing RFC 8335 PROBE messages */
+/* Verifies name is a valid linux interface name
+ * Copied from iproute2's if name check
+ */
+int check_ifname(const char *name)
+{
+	/* These checks mimic kernel checks in dev_valid_name */
+	if (*name == '\0')
+		return -1;
+	if (strlen(name) >= IFNAMSIZ)
+		return -1;
+
+	while (*name) {
+		if (*name == '/' || isspace(*name))
+			return -1;
+		++name;
+	}
+	return 0;
+}
+
+/* Determine c_type of interface */
+int get_c_type(const char *interface) {
+	struct in_addr inaddr;
+	struct in6_addr in6addr;
+
+	if(inet_pton(AF_INET, interface, &inaddr) == 1 || inet_pton(AF_INET6, interface, &in6addr) == 1)
+		return ICMP_EXT_ECHO_CTYPE_ADDR;
+	if(isalpha(interface[0])) {
+		if (check_ifname(interface) == 0)
+			return ICMP_EXT_ECHO_CTYPE_NAME;
+		else {
+			printf("Error: Invalid Interface Name\n");
+			return -1;
+		}
+	}
+	while (*interface) {
+		if (isalpha(*interface) || isspace(*interface))
+			return -1;
+		++interface;
+	}
+	return ICMP_EXT_ECHO_CTYPE_INDEX;
+}
+
 /*
  * pinger --
  * 	Compose and transmit an ICMP ECHO REQUEST packet.  The IP packet
@@ -600,8 +643,8 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 
 		/* Send probes scheduled to this time. */
 		do {
-			next = pinger(rts, fset, sock); // this does the seending
-			next = schedule_exit(rts, next); // this just counts the packets to make sure it doesnt go over the number of packets its supposed to send
+			next = pinger(rts, fset, sock);
+			next = schedule_exit(rts, next);
 		} while (next <= 0);
 
 		/* "next" is time to send next probe, if positive.
@@ -706,7 +749,8 @@ int main_loop(struct ping_rts *rts, ping_func_set_st *fset, socket_st *sock,
 						gettimeofday(&recv_time, NULL);
 					recv_timep = &recv_time;
 				}
-			not_ours = fset->parse_reply(rts, sock, &msg, cc, addrbuf, recv_timep);
+
+				not_ours = fset->parse_reply(rts, sock, &msg, cc, addrbuf, recv_timep);
 			}
 
 			/* See? ... someone runs another ping on this host. */
