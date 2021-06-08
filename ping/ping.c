@@ -1444,9 +1444,9 @@ in_cksum(const unsigned short *addr, int len, unsigned short csum)
 int ping4_send_probe(struct ping_rts *rts, socket_st *sock, void *packet,
 		     unsigned packet_size __attribute__((__unused__)))
 {
-	uint32_t        iio_ip_hdr = 0;
 	struct exthdr   *extbase, ext;
 	struct iiohdr   *iiobase, iio;
+	uint32_t iio_ip_hdr = 0;
 	struct icmphdr  *icp;
 	int cc;
 	int i;
@@ -1492,7 +1492,8 @@ send_msg:
 	return (cc == i ? 0 : i);
 build_probe:
     	extbase = (struct exthdr *)(icp + 1);
-    	iiobase = (struct iiohdr *)((char *)packet + sizeof(struct icmphdr) + sizeof(struct exthdr));
+	iiobase = (struct iiohdr *)((char *)extbase + sizeof(struct exthdr));
+    	//iiobase = (struct iiohdr *)((char *)packet + sizeof(struct icmphdr) + sizeof(struct exthdr));
     	icp->type = ICMP_EXT_ECHO;
 	/* PROBE messages use only the first 8 bits as sequence number */
     	icp->un.echo.sequence = htons((rts->ntransmitted + 1) << 8);
@@ -1506,7 +1507,7 @@ build_probe:
 	/* 3 is highest valid ctype */
 	if (iio.ctype > 3)
 		/* MUST NOT */
-		return 1;
+		error(2, 0, _("invalid ctype"));
 
 	rcvd_clear(rts, rts->ntransmitted + 1);
 

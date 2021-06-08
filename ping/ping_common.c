@@ -326,8 +326,7 @@ int get_c_type(const char *interface) {
 		if (check_ifname(interface) == 0)
 			return ICMP_EXT_ECHO_CTYPE_NAME;
 		else {
-			printf("Error: Invalid Interface Name\n");
-			return -1;
+			error(2, 0, "invalid interface name");
 		}
 	}
 	while (*interface) {

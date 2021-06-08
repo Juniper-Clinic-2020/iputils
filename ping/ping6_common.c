@@ -547,6 +547,46 @@ out:
 	return net_errors ? net_errors : -local_errors;
 }
 
+#if BYTE_ORDER == LITTLE_ENDIAN
+# define ODDBYTE(v)	(v)
+#elif BYTE_ORDER == BIG_ENDIAN
+# define ODDBYTE(v)	((unsigned short)(v) << 8)
+#else
+# define ODDBYTE(v)	htons((unsigned short)(v) << 8)
+#endif
+
+static unsigned short
+in_cksum(const unsigned short *addr, int len, unsigned short csum)
+{
+	int nleft = len;
+	const unsigned short *w = addr;
+	unsigned short answer;
+	int sum = csum;
+
+	/*
+	 *  Our algorithm is simple, using a 32 bit accumulator (sum),
+	 *  we add sequential 16 bit words to it, and at the end, fold
+	 *  back all the carry bits from the top 16 bits into the lower
+	 *  16 bits.
+	 */
+	while (nleft > 1) {
+		sum += *w++;
+		nleft -= 2;
+	}
+
+	/* mop up an odd byte, if necessary */
+	if (nleft == 1)
+		sum += ODDBYTE(*(unsigned char *)w); /* le16toh() may be unavailable on old systems */
+
+	/*
+	 * add back carry outs from top 16 bits to low 16 bits
+	 */
+	sum = (sum >> 16) + (sum & 0xffff);	/* add hi 16 to low 16 */
+	sum += (sum >> 16);			/* add carry */
+	answer = ~sum;				/* truncate to 16 bits */
+	return (answer);
+}
+
 /*
  * pinger --
  * 	Compose and transmit an ICMP ECHO REQUEST packet.  The IP packet
@@ -577,6 +617,90 @@ int build_echo(struct ping_rts *rts, uint8_t *_icmph,
 	return cc;
 }
 
+int build_probe(struct ping_rts *rts, uint8_t *_icmph,
+	       unsigned packet_size __attribute__((__unused__)))
+{
+	struct exthdr *extbase, ext;
+	struct iiohdr *iiobase, iio;
+	struct icmp6_hdr *icmph;
+	uint32_t iio_ip_hdr = 0;
+	int cc;
+
+	icmph = (struct icmp6_hdr *)_icmph;
+    	extbase = (struct exthdr *)(icmph + 1);
+	iiobase = (struct iiohdr *)((char *)extbase + sizeof(struct exthdr));
+	icmph->icmp6_type = ICMPV6_EXT_ECHO_REQUEST;
+	icmph->icmp6_code = 0;
+	icmph->icmp6_cksum = 0;
+	icmph->icmp6_id = rts->ident;
+	/* PROBE messages use only the first 8 bits as sequence number */
+	icmph->icmp6_dataun.icmp6_un_data8[2] = htons((rts->ntransmitted + 1));
+	icmph->icmp6_dataun.icmp6_un_data8[3] = htons(1);	/* Set L-bit */
+    	WRITE_VERSION(ext.v_rsvd , 2);
+    	ext.v_rsvd = htons(ext.v_rsvd);
+    	ext.checksum = 0;
+    	iio.len = sizeof(struct iiohdr);
+    	iio.class = 3;
+    	iio.ctype = get_c_type(rts->interface);
+	/* 3 is highest valid ctype */
+	if (iio.ctype > 3)
+		/* MUST NOT */
+		return -1;
+
+	rcvd_clear(rts, rts->ntransmitted + 1);
+
+    	// Create IIO addr info based on C-Type
+	switch (iio.ctype) {
+	case ICMP_EXT_ECHO_CTYPE_NAME:
+		iio.len += strlen(rts->interface);
+    	    	// pad to 32-bit boundary
+    	    	memset(iiobase + 1 + ((strlen(rts->interface)-1)/4), 0, sizeof(uint32_t));
+    	    	memcpy(iiobase + 1, rts->interface, strlen(rts->interface));
+		break;
+	case ICMP_EXT_ECHO_CTYPE_ADDR:
+		iio.len += sizeof(struct in_addr);
+		// if we're sending an ipv4 address
+    	    	if(strchr(rts->interface, '.')) {
+			iio.len += sizeof(struct in_addr);
+			/* set up AFI and length */
+			iio_ip_hdr = (ICMP_AFI_IP << IIO_AFI_POS) | (sizeof(struct in_addr) << IIO_ADRLEN_POS);
+			iio_ip_hdr = htonl(iio_ip_hdr);
+    	    		inet_pton(AF_INET, rts->interface, (iiobase+2));
+    	    		memcpy(iiobase + 1, &iio_ip_hdr, sizeof(iio_ip_hdr));
+		}
+    	    	else {
+			iio.len += sizeof(struct in6_addr);
+			/* set up AFI and length */
+    	    		iio_ip_hdr = (ICMP_AFI_IP6 << IIO_AFI_POS) | (sizeof(struct in6_addr) << IIO_ADRLEN_POS);
+    	    		iio_ip_hdr = htonl(iio_ip_hdr);
+    	    		inet_pton(AF_INET6, rts->interface, (iiobase+2));
+    	    		memcpy(iiobase + 1, &iio_ip_hdr, sizeof(iio_ip_hdr));
+		}
+		break;
+    	case ICMP_EXT_ECHO_CTYPE_INDEX:
+		iio.len += sizeof(uint32_t);
+    	    	// Using iio_ip_hdr as a temp variable to store ifIndex
+    	    	iio_ip_hdr = htonl(atoi(rts->interface));
+    	    	memcpy(iiobase + 1, &iio_ip_hdr, sizeof(uint32_t));
+		break;
+	default:
+		return -1;
+    	}
+    	
+    	
+    	iio.len = htons(iio.len);
+    	memcpy(extbase, &ext, sizeof(ext));
+    	memcpy(iiobase, &iio, sizeof(iio));
+    	
+	if (rts->timing)
+		gettimeofday((struct timeval *)&_icmph[8 + sizeof(ext) + sizeof(iio) + ntohs(iio.len)],
+		    (struct timezone *)NULL);
+
+	cc = rts->datalen + 8;			/* skips ICMP portion */
+
+	return cc;
+	
+}
 
 int build_niquery(struct ping_rts *rts, uint8_t *_nih,
 		  unsigned packet_size __attribute__((__unused__)))
@@ -609,8 +733,12 @@ int ping6_send_probe(struct ping_rts *rts, socket_st *sock, void *packet, unsign
 
 	if (niquery_is_enabled(&rts->ni))
 		len = build_niquery(rts, packet, packet_size);
-	else
-		len = build_echo(rts, packet, packet_size);
+	else {
+		if (rts->probe == 1)
+			len = build_probe(rts, packet, packet_size);
+		else
+			len = build_echo(rts, packet, packet_size);
+	}
 
 	if (rts->cmsglen == 0) {
 		cc = sendto(sock->fd, (char *)packet, len, rts->confirm,
