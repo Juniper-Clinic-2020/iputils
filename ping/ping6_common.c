@@ -645,7 +645,7 @@ int build_probe(struct ping_rts *rts, uint8_t *_icmph,
 	/* 3 is highest valid ctype */
 	if (iio.ctype > 3)
 		/* MUST NOT */
-		return -1;
+		error(2, 0, _("invalid ctype"));
 
 	rcvd_clear(rts, rts->ntransmitted + 1);
 
