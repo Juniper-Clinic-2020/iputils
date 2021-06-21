@@ -783,20 +783,21 @@ int gather_statistics(struct ping_rts *rts, uint8_t *icmph, int icmplen,
 
 	if (rts->timing && cc >= (int)(8 + sizeof(struct timeval))) {
 		struct timeval tmp_tv;
-		memcpy(&tmp_tv, ptr, sizeof(tmp_tv));
+		if (!rts->probe)
+			memcpy(&tmp_tv, ptr, sizeof(tmp_tv));
+		else
+			memcpy(&tmp_tv, icmph + rts->timestamp_offset, sizeof(tmp_tv)); 
 
 restamp:
 		tvsub(tv, &tmp_tv);
 		triptime = tv->tv_sec * 1000000 + tv->tv_usec;
-		if (!rts->probe) {
-			if (triptime < 0) {
-				error(0, 0, _("Warning: time of day goes back (%ldus), taking countermeasures"), triptime);
-				triptime = 0;
-				if (!rts->opt_latency) {
-					gettimeofday(tv, NULL);
-					rts->opt_latency = 1;
-					goto restamp;
-				}
+		if (triptime < 0) {
+			error(0, 0, _("Warning: time of day goes back (%ldus), taking countermeasures"), triptime);
+			triptime = 0;
+			if (!rts->opt_latency) {
+				gettimeofday(tv, NULL);
+				rts->opt_latency = 1;
+				goto restamp;
 			}
 		}
 		if (!csfailed) {
@@ -853,20 +854,18 @@ restamp:
 			printf(_(" (truncated)\n"));
 			return 1;
 		}
-		if (!rts->probe) {
-			if (rts->timing) {
-				if (triptime >= 100000 - 50)
-					printf(_(" time=%ld ms"), (triptime + 500) / 1000);
-				else if (triptime >= 10000 - 5)
-					printf(_(" time=%ld.%01ld ms"), (triptime + 50) / 1000,
-						((triptime + 50) % 1000) / 100);
-				else if (triptime >= 1000)
-					printf(_(" time=%ld.%02ld ms"), (triptime + 5) / 1000,
-						((triptime + 5) % 1000) / 10);
-				else
-					printf(_(" time=%ld.%03ld ms"), triptime / 1000,
-						triptime % 1000);
-			}
+		if (rts->timing) {
+			if (triptime >= 100000 - 50)
+				printf(_(" time=%ld ms"), (triptime + 500) / 1000);
+			else if (triptime >= 10000 - 5)
+				printf(_(" time=%ld.%01ld ms"), (triptime + 50) / 1000,
+					((triptime + 50) % 1000) / 100);
+			else if (triptime >= 1000)
+				printf(_(" time=%ld.%02ld ms"), (triptime + 5) / 1000,
+					((triptime + 5) % 1000) / 10);
+			else
+				printf(_(" time=%ld.%03ld ms"), triptime / 1000,
+					triptime % 1000);
 		}
 		if (dupflag && (!multicast || rts->opt_verbose))
 			printf(_(" (DUP!)"));
@@ -937,8 +936,7 @@ int finish(struct ping_rts *rts)
 #endif
 		printf(_(", %g%% packet loss"),
 		       (float)((((long long)(rts->ntransmitted - rts->nreceived)) * 100.0) / rts->ntransmitted));
-		if(!rts->probe)
-			printf(_(", time %ldms"), 1000 * tv.tv_sec + (tv.tv_nsec + 500000) / 1000000);
+		printf(_(", time %ldms"), 1000 * tv.tv_sec + (tv.tv_nsec + 500000) / 1000000);
 	}
 
 	putchar('\n');
@@ -958,12 +956,11 @@ int finish(struct ping_rts *rts)
 
 		tmdev = llsqrt(tmvar);
 
-		if(!rts->probe)
-			printf(_("rtt min/avg/max/mdev = %ld.%03ld/%lu.%03ld/%ld.%03ld/%ld.%03ld ms"),
-				(long)rts->tmin / 1000, (long)rts->tmin % 1000,
-				(unsigned long)(tmavg / 1000), (long)(tmavg % 1000),
-				(long)rts->tmax / 1000, (long)rts->tmax % 1000,
-				(long)tmdev / 1000, (long)tmdev % 1000);
+		printf(_("rtt min/avg/max/mdev = %ld.%03ld/%lu.%03ld/%ld.%03ld/%ld.%03ld ms"),
+			(long)rts->tmin / 1000, (long)rts->tmin % 1000,
+			(unsigned long)(tmavg / 1000), (long)(tmavg % 1000),
+			(long)rts->tmax / 1000, (long)rts->tmax % 1000,
+			(long)tmdev / 1000, (long)tmdev % 1000);
 		comma = ", ";
 	}
 	if (rts->pipesize > 1) {

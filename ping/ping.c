@@ -1483,8 +1483,10 @@ send_msg:
 		gettimeofday(&tmp_tv, NULL);
 		if (rts->probe == 0)
 			memcpy(icp + 1, &tmp_tv, sizeof(tmp_tv));
-		else if (rts->probe == 1)
-			memcpy((char *)iiobase + ntohs(iio.len), &tmp_tv, sizeof(tmp_tv));
+		else if (rts->probe == 1) {
+			rts->timestamp_offset = sizeof(struct icmphdr) + sizeof(struct exthdr) + ntohs(iio.len);
+			memcpy((char *)icp + rts->timestamp_offset, &tmp_tv, sizeof(tmp_tv));
+		}
 		icp->checksum = in_cksum((unsigned short *)&tmp_tv, sizeof(tmp_tv), ~icp->checksum);
 	}
 	i = sendto(sock->fd, icp, cc, 0, (struct sockaddr *)&rts->whereto, sizeof(rts->whereto));

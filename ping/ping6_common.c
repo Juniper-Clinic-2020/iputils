@@ -660,9 +660,11 @@ int build_probe(struct ping_rts *rts, uint8_t *_icmph,
     	memcpy(extbase, &ext, sizeof(ext));
     	memcpy(iiobase, &iio, sizeof(iio));
     	
-	if (rts->timing)
-		gettimeofday((struct timeval *)&_icmph[8 + sizeof(ext) + sizeof(iio) + ntohs(iio.len)],
+	if (rts->timing) {
+		rts->timestamp_offset = sizeof(struct icmphdr) + sizeof(ext) + ntohs(iio.len);
+		gettimeofday((struct timeval *)&_icmph[rts->timestamp_offset],
 		    (struct timezone *)NULL);
+	}
 
 	cc = rts->datalen + 8;			/* skips ICMP portion */
 

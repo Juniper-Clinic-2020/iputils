@@ -272,8 +272,9 @@ struct ping_rts {
 	int screen_width;
 
 	/* Used in sending PROBE messages */
-	int probe;
+	uint32_t timestamp_offset;
 	char* interface;
+	int probe;
 #ifdef HAVE_LIBCAP
 	cap_value_t cap_raw;
 	cap_value_t cap_admin;
