@@ -555,38 +555,6 @@ out:
 # define ODDBYTE(v)	htons((unsigned short)(v) << 8)
 #endif
 
-static unsigned short
-in_cksum(const unsigned short *addr, int len, unsigned short csum)
-{
-	int nleft = len;
-	const unsigned short *w = addr;
-	unsigned short answer;
-	int sum = csum;
-
-	/*
-	 *  Our algorithm is simple, using a 32 bit accumulator (sum),
-	 *  we add sequential 16 bit words to it, and at the end, fold
-	 *  back all the carry bits from the top 16 bits into the lower
-	 *  16 bits.
-	 */
-	while (nleft > 1) {
-		sum += *w++;
-		nleft -= 2;
-	}
-
-	/* mop up an odd byte, if necessary */
-	if (nleft == 1)
-		sum += ODDBYTE(*(unsigned char *)w); /* le16toh() may be unavailable on old systems */
-
-	/*
-	 * add back carry outs from top 16 bits to low 16 bits
-	 */
-	sum = (sum >> 16) + (sum & 0xffff);	/* add hi 16 to low 16 */
-	sum += (sum >> 16);			/* add carry */
-	answer = ~sum;				/* truncate to 16 bits */
-	return (answer);
-}
-
 /*
  * pinger --
  * 	Compose and transmit an ICMP ECHO REQUEST packet.  The IP packet
@@ -927,6 +895,8 @@ int ping6_parse_reply(struct ping_rts *rts, socket_st *sock,
 	struct cmsghdr *c;
 	struct icmp6_hdr *icmph;
 	int hops = -1;
+	uint16_t sequence;
+	uint8_t state;
 
 	for (c = CMSG_FIRSTHDR(msg); c; c = CMSG_NXTHDR(msg, c)) {
 		if (c->cmsg_level != IPPROTO_IPV6)
@@ -965,6 +935,73 @@ int ping6_parse_reply(struct ping_rts *rts, socket_st *sock,
 				      hops, 0, tv, pr_addr(rts, from, sizeof *from),
 				      pr_echo_reply,
 				      rts->multicast)) {
+			fflush(stdout);
+			return 0;
+		}
+	} else if (icmph->icmp6_type == ICMPV6_EXT_ECHO_REPLY) {
+		if (!rts->multicast &&
+		    memcmp(&from->sin6_addr.s6_addr, &rts->whereto6.sin6_addr.s6_addr, 16))
+			return 1;
+		if (!is_ours(rts, sock, icmph->icmp6_id))
+			return 1;
+		if (!contains_pattern_in_payload(rts, (uint8_t *)(icmph + 1)))
+			return 1;	/* 'Twas really not our ECHO */
+
+		sequence = ntohs(icmph->icmp6_seq);
+		state = icmph->icmp6_seq & 0xe0;
+		printf("Interface: %s\n", rts->interface);
+		switch (icmph->icmp6_code) {
+			case 1:
+				printf("Error: Malformed Query\n");
+				break;
+			case 2:
+				printf("Error: No Such Interface\n");
+				break;
+			case 3:
+				printf("Error: No Such Table Entry\n");
+				break;
+			case 4:
+				printf("Error: Multiple Interfaces Satisfy Query\n");
+				break;
+			default:
+				break;
+		}
+		switch (state) {
+			case 1:
+				printf("State: Incomplete\n");
+				break;
+			case 2:
+				printf("State: Reachable\n");
+				break;
+			case 3:
+				printf("State: Stale\n");
+				break;
+			case 4:
+				printf("State: Delay\n");
+				break;
+			case 5:
+				printf("State: Probe\n");
+				break;
+			case 6:
+				printf("State: Failed\n");
+				break;
+			default:
+				break;
+		}
+		if (icmph->icmp6_code == 0) {
+			if ((sequence & ICMP_EXT_ECHOREPLY_ACTIVE) != 0) {
+				printf("Status: ACTIVE");
+				if (sequence & ICMP_EXT_ECHOREPLY_IPV4)
+					printf(" IPV4");
+				if (sequence & ICMP_EXT_ECHOREPLY_IPV6)
+					printf(" IPV6");
+			printf("\n");
+			}
+		}
+		if (gather_statistics(rts, (uint8_t *)icmph, sizeof(*icmph), cc,
+				      ntohs(icmph->icmp6_seq),
+				      hops, 0, tv, pr_addr(rts, from, sizeof *from),
+				      pr_echo_reply, rts->multicast)) {
 			fflush(stdout);
 			return 0;
 		}
