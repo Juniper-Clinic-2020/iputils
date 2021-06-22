@@ -602,8 +602,8 @@ int build_probe(struct ping_rts *rts, uint8_t *_icmph,
 	icmph->icmp6_cksum = 0;
 	icmph->icmp6_id = rts->ident;
 	/* PROBE messages use only the first 8 bits as sequence number */
-	icmph->icmp6_dataun.icmp6_un_data8[2] = htons((rts->ntransmitted + 1));
-	icmph->icmp6_dataun.icmp6_un_data8[3] = htons(1);	/* Set L-bit */
+	icmph->icmp6_dataun.icmp6_un_data8[2] = rts->ntransmitted + 1;
+	icmph->icmp6_dataun.icmp6_un_data8[3] = 1;	/* Set L-bit */
     	WRITE_VERSION(ext.v_rsvd , 2);
     	ext.v_rsvd = htons(ext.v_rsvd);
     	ext.checksum = 0;
@@ -740,7 +740,11 @@ void pr_echo_reply(uint8_t *_icmph, int cc __attribute__((__unused__)))
 {
 	struct icmp6_hdr *icmph = (struct icmp6_hdr *)_icmph;
 
-	printf(_(" icmp_seq=%u"), ntohs(icmph->icmp6_seq));
+	if (icmph->icmp6_type == ICMPV6_EXT_ECHO_REPLY)
+		/* PROBE messages use only the first 8 bits as sequence number */
+		printf(_(" icmp_seq=%u"), ntohs(icmph->icmp6_seq) >> 8);
+	else
+		printf(_(" icmp_seq=%u"), ntohs(icmph->icmp6_seq));
 }
 
 static void putchar_safe(char c)

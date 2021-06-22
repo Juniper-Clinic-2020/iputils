@@ -1573,7 +1573,11 @@ void pr_echo_reply(uint8_t *_icp, int len __attribute__((__unused__)))
 {
 	struct icmphdr *icp = (struct icmphdr *)_icp;
 
-	printf(_(" icmp_seq=%u"), ntohs(icp->un.echo.sequence));
+	if (icp->type == ICMP_EXT_ECHOREPLY)
+		/* PROBE messages use only the first 8 bits as sequence number */
+		printf(_(" icmp_seq=%u"), ntohs(icp->un.echo.sequence) >> 8);
+	else
+		printf(_(" icmp_seq=%u"), ntohs(icp->un.echo.sequence));
 }
 
 int ping4_parse_reply(struct ping_rts *rts, struct socket_st *sock,
